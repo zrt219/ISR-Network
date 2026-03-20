@@ -13,7 +13,7 @@
 
 ## 🔴 Live Demo
 
-**[View Dashboard →](https://isr-command.surge.sh)**
+**[View Dashboard →](http://isr-network.surge.sh/)**
 
 **Contract on Explorer →** [0xa766e4...faA897](https://explorer.testnet.xrplevm.org/address/0xa766e45193e562A934AD2cb1994c8f9007faA897)
 
@@ -359,5 +359,7 @@ More projects being built on XRPL EVM Testnet:
 ---
 
 ## License
+
+MIT — see [LICENSE](LICENSE)
 
 MIT
