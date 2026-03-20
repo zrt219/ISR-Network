@@ -1,0 +1,2054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISR Network — In-Situ Recovery Control System</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛏</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600&display=swap">
+<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #071A0A;
+  --surf:     #0A2010;
+  --panel:    #0D2614;
+  --border:   #163C1C;
+  --borderlt: #2A5A2A;
+  --tx:       #EAF8EA;
+  --mu:       #80C080;
+  --uranium:  #AADC00;
+  --ulight:   #CCFF00;
+  --udark:    #88B800;
+  --inject:   #22C8FF;
+  --extract:  #FFD060;
+  --lime:     #90F090;
+  --amber:    #FFA830;
+  --red:      #FF4466;
+  --pur:      #C070FF;
+  --blue:     #22E8FF;
+  --sky:      #87CEEB;
+  --grass:    #4A8C2A;
+  --soil:     #6B4423;
+  --clay:     #3D2B0A;
+  --aquifer:  #1A3A5C;
+  --sand:     #8B7355;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font-family:'Rajdhani',sans-serif;font-weight:600;min-height:100vh;overflow-x:hidden}
+
+/* ── SCANLINES ── */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.012),rgba(255,255,255,.012) 1px,transparent 1px,transparent 3px);opacity:.12;mix-blend-mode:overlay}
+
+/* ── GRID BG ── */
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(141,182,0,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(141,182,0,.018) 1px,transparent 1px);background-size:48px 48px}
+
+/* ── DEPTH GLOW ── */
+.depth-glow{position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(circle at 20% 40%,rgba(0,168,255,.14),transparent 40%),radial-gradient(circle at 80% 60%,rgba(141,182,0,.14),transparent 40%),radial-gradient(circle at 50% 90%,rgba(255,184,48,.10),transparent 35%);filter:blur(60px);animation:depthShift 18s ease-in-out infinite alternate}
+@keyframes depthShift{0%{opacity:.4}50%{opacity:.7}100%{opacity:.4}}
+
+/* ── APP ── */
+.app{position:relative;z-index:2;max-width:1600px;margin:0 auto;padding:12px 16px 60px}
+
+/* ── ALERTS ── */
+.chain-warn{display:none;background:rgba(255,45,85,.1);border:1px solid rgba(255,45,85,.4);border-radius:4px;padding:8px 16px;margin-bottom:8px;font-family:'Orbitron',monospace;font-size:9px;letter-spacing:.1em;color:var(--red);text-align:center}
+.chain-warn.show{display:block}
+.no-mm{display:none;background:rgba(255,140,0,.08);border:1px solid rgba(255,140,0,.3);border-radius:4px;padding:10px 16px;margin-bottom:8px;font-size:13px;color:var(--amber);text-align:center}
+.no-mm.show{display:block}
+.no-mm a{color:var(--amber);text-decoration:underline}
+
+/* ── HEADER ── */
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;margin-bottom:10px;border:1px solid var(--borderlt);border-radius:4px;background:rgba(10,30,14,.97);position:relative;overflow:hidden;backdrop-filter:blur(12px)}
+header::before{content:'';position:absolute;top:0;left:-100%;height:1px;width:200%;background:linear-gradient(90deg,transparent,var(--uranium) 20%,var(--lime) 50%,var(--inject) 80%,transparent);animation:headerScan 6s linear infinite}
+@keyframes headerScan{0%{left:-100%}100%{left:100%}}
+header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(141,182,0,.3),transparent)}
+.logo-wrap .logo-sub{font-size:9px;letter-spacing:.4em;color:var(--uranium);opacity:.6;margin-bottom:3px;font-family:'Rajdhani',sans-serif;text-transform:uppercase}
+.logo-wrap .logo-main{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 0 28px rgba(141,182,0,.5)}
+.logo-wrap .logo-main em{color:var(--uranium);font-style:normal}
+.logo-wrap .logo-main span{color:var(--inject)}
+.hdr-stats{display:flex;gap:20px;align-items:center}
+.hdr-stat{text-align:center}
+.hdr-stat-lbl{font-size:8px;letter-spacing:.2em;color:var(--mu);text-transform:uppercase;font-family:'Rajdhani',sans-serif}
+.hdr-stat-val{font-family:'Orbitron',monospace;font-size:13px;font-weight:700}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.wi .wl{font-size:9px;letter-spacing:.2em;color:var(--mu);text-transform:uppercase;margin-bottom:2px}
+.wi .wa{font-family:'Orbitron',monospace;font-size:11px;color:var(--uranium)}
+.sp-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:10px;font-size:9px;letter-spacing:.1em;font-family:'Orbitron',monospace}
+.sp-off{background:rgba(255,45,85,.08);border:1px solid rgba(255,45,85,.22);color:var(--red)}
+.sp-on{background:rgba(141,182,0,.08);border:1px solid rgba(141,182,0,.22);color:var(--uranium)}
+.cbtn{font-family:'Orbitron',monospace;font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;padding:8px 18px;background:transparent;border:1px solid var(--uranium);color:var(--uranium);cursor:pointer;border-radius:3px;transition:all .2s;position:relative;overflow:hidden}
+.cbtn::before{content:'';position:absolute;inset:0;background:var(--uranium);transform:scaleX(0);transform-origin:left;transition:transform .25s;z-index:-1}
+.cbtn:hover{color:#000}
+.cbtn:hover::before{transform:scaleX(1)}
+.cbtn.on{background:rgba(141,182,0,.08)}
+
+/* ── SECTION LABEL ── */
+.slbl{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--uranium);opacity:.55;margin:12px 0 6px;display:flex;align-items:center;gap:10px}
+.slbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(141,182,0,.3),transparent)}
+
+/* ── METRIC STRIP ── */
+.metrics-row{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:10px}
+.mcard{background:rgba(12,32,16,.95);border:1px solid var(--border);border-radius:4px;padding:10px 12px;position:relative;overflow:hidden;backdrop-filter:blur(8px);transition:border-color .3s}
+.mcard::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px}
+.mc-u::after{background:var(--uranium);box-shadow:0 0 6px var(--uranium)}
+.mc-i::after{background:var(--inject);box-shadow:0 0 6px var(--inject)}
+.mc-e::after{background:var(--extract);box-shadow:0 0 6px var(--extract)}
+.mc-l::after{background:var(--lime);box-shadow:0 0 6px var(--lime)}
+.mc-a::after{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.mc-r::after{background:var(--red);box-shadow:0 0 6px var(--red)}
+.mcard:hover{border-color:var(--borderlt)}
+.mlbl{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);margin-bottom:4px;font-family:'Rajdhani',sans-serif;font-weight:700}
+.mval{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;line-height:1.2}
+.msub{font-size:9px;color:var(--mu);font-family:'Rajdhani',sans-serif;margin-top:2px}
+.cv-u{color:var(--uranium);text-shadow:0 0 10px rgba(141,182,0,.5)}
+.cv-i{color:var(--inject);text-shadow:0 0 10px rgba(0,168,255,.5)}
+.cv-e{color:var(--extract);text-shadow:0 0 10px rgba(255,184,48,.5)}
+.cv-l{color:var(--lime);text-shadow:0 0 10px rgba(126,231,135,.5)}
+.cv-a{color:var(--amber);text-shadow:0 0 10px rgba(255,140,0,.5)}
+.cv-r{color:var(--red);text-shadow:0 0 10px rgba(255,45,85,.5)}
+@keyframes mPulse{0%{box-shadow:inset 0 0 0 rgba(141,182,0,0)}50%{box-shadow:inset 0 0 12px rgba(141,182,0,.1),0 0 16px rgba(141,182,0,.2)}100%{box-shadow:inset 0 0 0 rgba(141,182,0,0)}}
+.mcard.updated{animation:mPulse .8s ease}
+
+/* ── MAIN LAYOUT ── */
+.main-grid{display:grid;grid-template-columns:1fr 380px;gap:10px;margin-bottom:10px}
+.left-col{display:flex;flex-direction:column;gap:10px}
+.right-col{display:flex;flex-direction:column;gap:10px}
+
+/* ── UNDERGROUND HERO ── */
+.underground-wrap{background:rgba(8,22,10,.98);border:1px solid var(--borderlt);border-radius:6px;position:relative;overflow:hidden;transition:all .8s cubic-bezier(.4,0,.2,1)}
+.underground-wrap.fullscreen{position:fixed;inset:0;z-index:1000;border-radius:0;border:none;max-width:none}
+#undergroundCanvas{display:block;width:100%;height:420px;cursor:crosshair}
+.underground-wrap.fullscreen #undergroundCanvas{height:100vh}
+.ug-controls{position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:10}
+.ug-btn{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.1em;padding:5px 10px;border:1px solid;border-radius:2px;cursor:pointer;background:rgba(3,14,6,.85);transition:all .2s;backdrop-filter:blur(8px)}
+.ug-btn-u{border-color:var(--uranium);color:var(--uranium)}.ug-btn-u.active{background:rgba(141,182,0,.15)}
+.ug-btn-i{border-color:var(--inject);color:var(--inject)}.ug-btn-i.active{background:rgba(0,168,255,.15)}
+.ug-btn-a{border-color:var(--amber);color:var(--amber)}.ug-btn-a.active{background:rgba(255,140,0,.15)}
+.ug-btn-r{border-color:var(--red);color:var(--red)}.ug-btn-r.active{background:rgba(255,45,85,.15)}
+.ug-fullscreen-btn{position:absolute;top:12px;right:12px;font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.12em;padding:6px 14px;border:1px solid var(--uranium);color:var(--uranium);background:rgba(3,14,6,.85);border-radius:2px;cursor:pointer;z-index:10;backdrop-filter:blur(8px);transition:all .2s}
+.ug-fullscreen-btn:hover{background:rgba(141,182,0,.12)}
+.ug-exit-btn{position:absolute;top:20px;left:20px;font-family:'Orbitron',monospace;font-size:9px;letter-spacing:.12em;padding:8px 18px;border:1px solid var(--uranium);color:var(--uranium);background:rgba(3,14,6,.9);border-radius:3px;cursor:pointer;z-index:1001;display:none;backdrop-filter:blur(12px)}
+.underground-wrap.fullscreen .ug-exit-btn{display:block}
+.underground-wrap.fullscreen .ug-fullscreen-btn{display:none}
+
+/* Well control panel (slides in on well click) */
+.well-panel{position:absolute;top:50%;right:16px;transform:translateY(-50%) translateX(120%);width:220px;background:rgba(3,14,6,.96);border:1px solid var(--uranium);border-radius:4px;padding:14px;z-index:20;transition:transform .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px)}
+.well-panel.open{transform:translateY(-50%) translateX(0)}
+.well-panel-title{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:.12em;color:var(--uranium);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.well-panel-close{cursor:pointer;color:var(--mu);font-size:14px;line-height:1}
+.well-stat{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px}
+.well-stat-k{color:var(--mu);font-family:'Rajdhani',sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:10px}
+.well-stat-v{font-family:'Orbitron',monospace;font-size:10px;color:var(--uranium)}
+.wp-slider-lbl{display:flex;justify-content:space-between;margin-bottom:4px;margin-top:8px}
+.wp-slider-key{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);font-family:'Rajdhani',sans-serif}
+.wp-slider-val{font-family:'Orbitron',monospace;font-size:9px;color:var(--lime)}
+input[type=range]{width:100%;height:3px;appearance:none;background:rgba(141,182,0,.2);border:none;border-radius:2px;cursor:pointer;margin:0}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:var(--uranium);box-shadow:0 0 6px var(--uranium);cursor:pointer}
+.wp-btn{width:100%;padding:6px;border-radius:2px;border:1px solid;font-family:'Orbitron',monospace;font-size:8px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:transparent;margin-top:8px;transition:all .2s}
+.wp-btn-g{border-color:var(--lime);color:var(--lime)}.wp-btn-g:hover{background:rgba(126,231,135,.1)}
+.wp-btn-r{border-color:var(--red);color:var(--red)}.wp-btn-r:hover{background:rgba(255,45,85,.1)}
+
+/* ── WELLFIELD GRID ── */
+.panel{background:rgba(12,32,16,.95);border:1px solid var(--border);border-radius:6px;padding:15px;position:relative;overflow:hidden;backdrop-filter:blur(10px);transition:border-color .3s}
+.panel::after{content:'';position:absolute;bottom:0;right:0;width:14px;height:14px;border-right:1px solid var(--borderlt);border-bottom:1px solid var(--borderlt)}
+.panel:hover{border-color:var(--borderlt)}
+.pbadge{display:inline-flex;align-items:center;gap:4px;font-size:8px;letter-spacing:.18em;text-transform:uppercase;padding:2px 7px;border-radius:2px;margin-bottom:7px;font-family:'Rajdhani',sans-serif}
+.br{background:rgba(141,182,0,.07);border:1px solid rgba(141,182,0,.2);color:var(--uranium)}
+.bi{background:rgba(0,168,255,.07);border:1px solid rgba(0,168,255,.2);color:var(--inject)}
+.be{background:rgba(255,184,48,.07);border:1px solid rgba(255,184,48,.2);color:var(--extract)}
+.ba{background:rgba(255,140,0,.07);border:1px solid rgba(255,140,0,.2);color:var(--amber)}
+.br2{background:rgba(255,45,85,.07);border:1px solid rgba(255,45,85,.2);color:var(--red)}
+.ptitle{font-family:'Orbitron',monospace;font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--tx);margin-bottom:10px}
+
+.well-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.well-node{background:rgba(10,26,12,.9);border:1px solid var(--border);border-radius:4px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.well-node::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.well-node.injecting::before{background:var(--inject)}
+.well-node.extracting::before{background:var(--extract)}
+.well-node.idle::before{background:var(--mu)}
+.well-node:hover{border-color:var(--borderlt);transform:scale(1.02)}
+.well-node.selected{border-color:var(--uranium);box-shadow:0 0 12px rgba(141,182,0,.15)}
+.wn-icon{font-size:20px;margin-bottom:4px}
+.wn-id{font-family:'Orbitron',monospace;font-size:8px;color:var(--mu);margin-bottom:3px}
+.wn-status{font-family:'Orbitron',monospace;font-size:7px;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px;border-radius:2px}
+.ws-inj{background:rgba(0,168,255,.1);color:var(--inject)}
+.ws-ext{background:rgba(255,184,48,.1);color:var(--extract)}
+.ws-idle{background:rgba(74,112,80,.1);color:var(--mu)}
+.wn-flow{font-family:'Orbitron',monospace;font-size:9px;color:var(--uranium);margin-top:4px}
+@keyframes wellPulse{0%,100%{box-shadow:0 0 0 rgba(141,182,0,0)}50%{box-shadow:0 0 12px rgba(141,182,0,.2)}}
+.well-node.injecting,.well-node.extracting{animation:wellPulse 2s ease-in-out infinite}
+
+/* ── CHEMICAL PIPELINE ── */
+.pipeline-stages{display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0}
+.pipe-stage{flex:1;min-width:90px;background:rgba(10,26,12,.9);border:1px solid var(--border);border-radius:4px;padding:10px 8px;text-align:center;position:relative}
+.pipe-stage::after{content:'→';position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:var(--mu);font-size:12px;z-index:2}
+.pipe-stage:last-child::after{display:none}
+.ps-icon{font-size:16px;margin-bottom:4px}
+.ps-name{font-family:'Orbitron',monospace;font-size:7px;letter-spacing:.06em;color:var(--uranium);text-transform:uppercase;margin-bottom:4px}
+.ps-count{font-family:'Orbitron',monospace;font-size:13px;color:var(--tx)}
+.ps-bar{height:2px;background:rgba(141,182,0,.1);border-radius:1px;overflow:hidden;margin-top:6px}
+.ps-fill{height:100%;border-radius:1px;transition:width 1s ease}
+@keyframes pipeFlow{0%{box-shadow:0 0 0 rgba(141,182,0,0)}50%{box-shadow:0 0 8px rgba(141,182,0,.15)}100%{box-shadow:0 0 0 rgba(141,182,0,0)}}
+
+/* ── COMPLIANCE PANEL ── */
+.compliance-grid{display:flex;flex-direction:column;gap:8px}
+.comp-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(10,26,12,.9);border:1px solid var(--border);border-radius:3px}
+.comp-icon{font-size:14px;flex-shrink:0}
+.comp-body{flex:1}
+.comp-lbl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu);font-family:'Rajdhani',sans-serif;margin-bottom:2px}
+.comp-val{font-family:'Orbitron',monospace;font-size:11px}
+.comp-bar-w{width:80px;height:3px;background:rgba(141,182,0,.1);border-radius:2px;overflow:hidden;flex-shrink:0}
+.comp-fill{height:100%;border-radius:2px;transition:width 1.5s ease,background 1.5s ease}
+
+/* ── BATCH TRACKER ── */
+.batch-list{height:220px;overflow:hidden;position:relative}
+.batch-list::-webkit-scrollbar{width:2px}
+.batch-list::-webkit-scrollbar-thumb{background:rgba(141,182,0,.25);border-radius:2px}
+.batch-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid rgba(141,182,0,.06);font-size:11px;transition:opacity .15s}
+@keyframes fadeIn{from{opacity:0;transform:translateZ(0)}to{opacity:1;transform:translateY(0)}}
+.bi-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.bi-body{flex:1}
+.bi-id{font-family:'Orbitron',monospace;font-size:8px;color:var(--mu)}
+.bi-stage{font-size:11px;font-weight:600;color:var(--tx)}
+.bi-prog{height:2px;background:rgba(141,182,0,.08);border-radius:2px;overflow:hidden;margin-top:2px}
+.bi-pfill{height:100%;border-radius:2px;transition:width .8s ease}
+.bi-pct{font-family:'Orbitron',monospace;font-size:8px}
+
+/* ── EVENT FEED ── */
+.feed-body{max-height:180px;overflow-y:auto}
+.feed-body::-webkit-scrollbar{width:2px}
+.feed-body::-webkit-scrollbar-thumb{background:rgba(141,182,0,.25);border-radius:2px}
+.feed-item{display:flex;align-items:flex-start;gap:8px;padding:5px 12px;border-bottom:1px solid rgba(141,182,0,.03);font-size:11px;animation:fadeIn .35s ease}
+.fi-icon{font-size:12px;flex-shrink:0;margin-top:1px}
+.fi-body{flex:1}
+.fi-title{color:var(--tx);font-weight:600;font-size:11px}
+.fi-sub{color:var(--mu);font-size:10px}
+.fi-time{font-family:'Orbitron',monospace;font-size:8px;color:var(--mu);flex-shrink:0;margin-top:2px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:blk 1s infinite;flex-shrink:0}
+@keyframes blk{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── WRITE PANEL ── */
+.write-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.wp-card{background:rgba(12,32,16,.95);border:1px solid rgba(170,220,0,.18);border-radius:6px;padding:14px;position:relative;overflow:hidden;backdrop-filter:blur(10px)}
+.wp-card::after{content:'';position:absolute;bottom:0;right:0;width:12px;height:12px;border-right:1px solid rgba(141,182,0,.15);border-bottom:1px solid rgba(141,182,0,.15)}
+.fl{font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-bottom:3px;font-family:'Rajdhani',sans-serif}
+input[type=number],input[type=text]{width:100%;padding:6px 8px;background:rgba(5,20,8,.8);border:1px solid rgba(141,182,0,.22);border-radius:3px;color:var(--tx);font-family:'Rajdhani',sans-serif;font-size:12px;outline:none;margin-bottom:6px;transition:border-color .2s}
+input[type=number]:focus,input[type=text]:focus{border-color:rgba(141,182,0,.4);box-shadow:0 0 8px rgba(141,182,0,.06)}
+input::placeholder{color:var(--mu)}
+select{width:100%;padding:6px 8px;background:rgba(5,20,8,.8);border:1px solid rgba(141,182,0,.22);border-radius:3px;color:var(--tx);font-family:'Rajdhani',sans-serif;font-size:12px;outline:none;margin-bottom:6px}
+select option{background:#061209}
+.btn{width:100%;padding:7px 10px;border-radius:3px;border:1px solid;font-family:'Orbitron',monospace;font-size:8px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:2px;background:transparent;position:relative;overflow:hidden}
+.btn-u{border-color:var(--uranium);color:var(--uranium)}.btn-u:hover{background:rgba(141,182,0,.1);box-shadow:0 0 14px rgba(141,182,0,.2)}
+.btn-i{border-color:var(--inject);color:var(--inject)}.btn-i:hover{background:rgba(0,168,255,.1)}
+.btn-a{border-color:var(--amber);color:var(--amber)}.btn-a:hover{background:rgba(255,140,0,.1)}
+.btn-r2{border-color:var(--red);color:var(--red)}.btn-r2:hover{background:rgba(255,45,85,.1)}
+.btn:disabled{opacity:.22;cursor:not-allowed}
+.btn:active:not(:disabled){transform:scale(.97)}
+
+/* TX STEPS */
+.tx-steps{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.tx-step{display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(0,0,0,.4);border:1px solid rgba(141,182,0,.05);border-radius:2px;font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);transition:all .3s}
+.tx-step.active{border-color:rgba(255,140,0,.4);color:var(--amber);background:rgba(255,140,0,.04)}
+.tx-step.done{border-color:rgba(141,182,0,.3);color:var(--uranium);background:rgba(141,182,0,.03)}
+.tx-step.fail{border-color:rgba(255,45,85,.3);color:var(--red)}
+.step-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;box-shadow:0 0 5px currentColor}
+.tx-step.active .step-dot{animation:blk .7s infinite}
+
+/* OUTPUT */
+.out{margin-top:6px;background:rgba(0,0,0,.4);border:1px solid rgba(141,182,0,.06);border-radius:3px;padding:7px 9px;min-height:36px;font-size:11px;color:var(--mu);line-height:1.8}
+.or{display:flex;justify-content:space-between;border-bottom:1px solid rgba(141,182,0,.03);padding:1px 0}
+.or:last-child{border-bottom:none}
+.ok2{color:var(--mu);font-size:10px}
+.ov{color:var(--uranium);font-weight:600;font-family:'Orbitron',monospace;font-size:9px}
+.sm2{font-size:10px;padding:6px 0;text-align:center}
+.sm2.er{color:var(--red)}.sm2.pn{color:var(--amber);animation:blk .9s infinite}
+
+/* LOG */
+.logpanel{background:rgba(10,24,12,.98);border:1px solid var(--border);border-radius:4px;margin-top:10px;overflow:hidden}
+.loghd{display:flex;align-items:center;gap:7px;padding:7px 12px;border-bottom:1px solid var(--border);font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.2em;color:var(--mu)}
+.logscroll{max-height:90px;overflow-y:auto}
+.logscroll::-webkit-scrollbar{width:2px}
+.logscroll::-webkit-scrollbar-thumb{background:rgba(141,182,0,.2);border-radius:2px}
+.logrow{display:flex;gap:8px;padding:2px 12px;font-size:10px;font-family:'Rajdhani',sans-serif}
+.lt2{color:var(--mu);min-width:64px;flex-shrink:0;font-family:'Orbitron',monospace;font-size:8px}
+.lm2{color:var(--tx);flex:1}.lm2.ok{color:var(--uranium)}.lm2.er{color:var(--red)}.lm2.wn{color:var(--amber)}.lm2.if{color:var(--inject)}
+
+/* ── TOOLTIP ── */
+.tooltip{position:fixed;background:rgba(8,28,12,.98);border:1px solid var(--uranium);border-radius:5px;padding:10px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--tx);max-width:280px;z-index:9998;pointer-events:none;opacity:0;transition:opacity .2s;backdrop-filter:blur(16px);line-height:1.6;box-shadow:0 0 20px rgba(170,220,0,.15)}
+.tooltip.show{opacity:1}
+.tooltip-title{font-family:'Orbitron',monospace;font-size:9px;color:var(--uranium);margin-bottom:5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700}
+.tooltip-fact{font-size:11px;color:var(--mu);margin-top:5px;padding-top:5px;border-top:1px solid rgba(170,220,0,.15);font-style:italic}
+/* ? help badges */
+.help-badge{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:rgba(170,220,0,.15);border:1px solid rgba(170,220,0,.4);color:var(--uranium);font-size:9px;font-weight:700;cursor:help;margin-left:4px;vertical-align:middle;font-family:'Orbitron',monospace;flex-shrink:0;transition:background .2s}
+.help-badge:hover{background:rgba(170,220,0,.28)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:1200px){.main-grid{grid-template-columns:1fr}.metrics-row{grid-template-columns:repeat(3,1fr)}.write-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.metrics-row{grid-template-columns:repeat(2,1fr)}.write-grid{grid-template-columns:1fr}.well-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="depth-glow"></div>
+
+<div class="app">
+<div class="chain-warn" id="chainWarn">⚠ WRONG NETWORK — Switch MetaMask to XRPL EVM Testnet (Chain ID: 1449000)</div>
+<div class="no-mm" id="noMM">MetaMask not detected. <a href="https://metamask.io" target="_blank">Install MetaMask</a> to interact. Simulation runs without wallet.</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-wrap">
+    <div class="logo-sub">☢ XRPL EVM Sidechain · ISR Control System · Testnet</div>
+    <div class="logo-main"><em>ISR</em> <span>Network</span></div>
+  </div>
+  <div class="hdr-stats">
+    <div class="hdr-stat"><div class="hdr-stat-lbl">Wells Active</div><div class="hdr-stat-val cv-u" id="hdr-wells">0</div></div>
+    <div class="hdr-stat"><div class="hdr-stat-lbl">Flow Rate</div><div class="hdr-stat-val cv-i" id="hdr-flow">0 L/hr</div></div>
+    <div class="hdr-stat"><div class="hdr-stat-lbl">Concentration</div><div class="hdr-stat-val cv-e" id="hdr-ppm">0 ppm</div></div>
+    <div class="hdr-stat"><div class="hdr-stat-lbl">Block</div><div class="hdr-stat-val cv-u" id="blockNum">--</div></div>
+  </div>
+  <div class="hdr-right">
+    <div class="wi"><div class="wl">Wallet</div><div class="wa" id="walletAddr">NOT CONNECTED</div></div>
+    <span class="sp-pill sp-off" id="statusPill">● OFFLINE</span>
+    <button class="cbtn" id="connectBtn">⚡ Initialize</button>
+  </div>
+</header>
+
+<!-- METRICS STRIP -->
+<div class="metrics-row">
+  <div class="mcard mc-u" id="mc-wells"><div class="mlbl">Active Wells <span class="help-badge" data-tooltip="info" data-title="ACTIVE WELLS" data-body="Number of wells currently injecting or extracting. ISR uses pairs — one injects oxygenated water down, one extracts uranium-bearing solution up." data-fact="A typical ISR wellfield runs 4–20 well pairs simultaneously.">?</span></div><div class="mval cv-u" id="m-wells">0</div><div class="msub">across all wellfields</div></div>
+  <div class="mcard mc-i" id="mc-flow"><div class="mlbl">Total Flow <span class="help-badge" data-tooltip="info" data-title="TOTAL FLOW RATE" data-body="Combined litres per hour across all active injection and extraction wells. Higher flow moves more uranium-bearing solution to surface." data-fact="Typical ISR wellfields operate at 1,000–15,000 L/hr total.">?</span></div><div class="mval cv-i" id="m-flow">0</div><div class="msub">L/hr combined</div></div>
+  <div class="mcard mc-e" id="mc-ppm"><div class="mlbl">Avg Concentration <span class="help-badge" data-tooltip="info" data-title="URANIUM CONCENTRATION" data-body="Parts per million of uranium in the extracted solution. ISR solution starts dilute and concentrates as it processes through resin stages." data-fact="Commercial ISR operations target 20–200 ppm uranium in solution.">?</span></div><div class="mval cv-e" id="m-ppm">0.0</div><div class="msub">ppm uranium</div></div>
+  <div class="mcard mc-l" id="mc-vol"><div class="mlbl">Volume Processed <span class="help-badge" data-tooltip="info" data-title="VOLUME PROCESSED" data-body="Total litres of uranium-bearing solution processed through the system. Most water is recycled back to injection wells after uranium is stripped." data-fact="Water recycling rates in ISR typically exceed 90%, minimizing environmental impact.">?</span></div><div class="mval cv-l" id="m-vol">0</div><div class="msub">litres total</div></div>
+  <div class="mcard mc-a" id="mc-yellowcake"><div class="mlbl">Yellowcake <span class="help-badge" data-tooltip="info" data-title="YELLOWCAKE (U3O8)" data-body="The final solid product — uranium oxide powder, named for its yellow color. Yellowcake is the first sellable form of uranium, before conversion to UF6 for enrichment." data-fact="Yellowcake is ~85% uranium oxide. It is then shipped to conversion facilities.">?</span></div><div class="mval cv-a" id="m-yellowcake">0.0</div><div class="msub">kg produced</div></div>
+  <div class="mcard mc-r" id="mc-aquifer"><div class="mlbl">Aquifer Status <span class="help-badge" data-tooltip="info" data-title="AQUIFER SAFETY" data-body="Status of impermeable clay barriers separating the extraction zone from drinking water aquifers above. ISR operates in an Aquifer Exemption Zone — designated not suitable for consumption." data-fact="Two impermeable clay layers isolate the 700ft extraction zone from surface groundwater at 150ft.">?</span></div><div class="mval cv-l" id="m-aquifer">SAFE</div><div class="msub">barrier integrity</div></div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid">
+  <div class="left-col">
+
+    <!-- UNDERGROUND HERO -->
+    <div class="slbl">◈ Subsurface Simulation — ISR Extraction Zone <span class="help-badge" data-tooltip="info" data-title="UNDERGROUND SIMULATION" data-body="Interactive cross-section showing the full ISR extraction process at ~700ft depth. Injection wells pump oxygenated water down, uranium dissolves from sandstone, extraction wells bring solution to surface." data-fact="Press TAB or click ⛶ to enter fullscreen underground mode. Click any well to control it.">?</span></div>
+    <div class="underground-wrap" id="ugWrap">
+      <canvas id="undergroundCanvas"></canvas>
+      <div class="ug-controls">
+        <button class="ug-btn ug-btn-u active" id="overlay-chem" onclick="toggleOverlay('chem')" data-tooltip="info" data-title="CHEM OVERLAY" data-body="Chemical concentration heatmap — shows uranium ppm radiating from extraction wells. Warmer colors = higher concentration." data-fact="Uranium concentration in ISR solution: blue=dilute, amber=rich.">CHEM</button>
+        <button class="ug-btn ug-btn-i active" id="overlay-flow" onclick="toggleOverlay('flow')" data-tooltip="info" data-title="FLOW OVERLAY" data-body="Directional arrows showing injection (downward) and extraction (upward) flow directions for each active well." data-fact="Flow direction is critical — reversing a well can damage the wellfield.">FLOW</button>
+        <button class="ug-btn ug-btn-a" id="overlay-aquifer" onclick="toggleOverlay('aquifer')" data-tooltip="info" data-title="AQUIFER OVERLAY" data-body="Highlights the protected groundwater zone at ~150ft depth. Shows why surface animals and groundwater are unaffected by extraction at 700ft." data-fact="The aquifer exemption zone is sandstone-hosted uranium — designated not suitable for drinking water.">AQUIFER</button>
+        <button class="ug-btn ug-btn-r" id="overlay-barrier" onclick="toggleOverlay('barrier')" data-tooltip="info" data-title="BARRIER OVERLAY" data-body="Shows the two impermeable clay barriers. These are natural geological formations that prevent uranium-bearing solution from migrating upward into protected groundwater." data-fact="Clay barriers must maintain 70%+ integrity. Below that, emergency halt protocols activate.">BARRIER</button>
+      </div>
+      <button class="ug-fullscreen-btn" onclick="enterFullscreen()">⛶ ENTER SUBSURFACE &nbsp;<span style="opacity:.55;font-size:7px;letter-spacing:.08em">[ TAB ]</span></button>
+      <button class="ug-exit-btn" onclick="exitFullscreen()">↑ SURFACE &nbsp;<span style="opacity:.55;font-size:8px">[ TAB / ESC ]</span></button>
+      <div class="well-panel" id="wellPanel">
+        <div class="well-panel-title">
+          <span id="wellPanelTitle">WELL #0</span>
+          <span class="well-panel-close" onclick="closeWellPanel()">✕</span>
+        </div>
+        <div class="well-stat"><span class="well-stat-k">Type</span><span class="well-stat-v" id="wp-type">—</span></div>
+        <div class="well-stat"><span class="well-stat-k">Status</span><span class="well-stat-v" id="wp-status">—</span></div>
+        <div class="well-stat"><span class="well-stat-k">Flow</span><span class="well-stat-v" id="wp-flow">—</span></div>
+        <div class="well-stat"><span class="well-stat-k">Pressure</span><span class="well-stat-v" id="wp-pressure">—</span></div>
+        <div class="well-stat"><span class="well-stat-k">Conc.</span><span class="well-stat-v" id="wp-conc">—</span></div>
+        <div class="wp-slider-lbl"><span class="wp-slider-key">Flow Rate</span><span class="wp-slider-val" id="wp-flow-val">2500</span></div>
+        <input type="range" id="wp-flow-slider" min="100" max="10000" value="2500" step="100" oninput="document.getElementById('wp-flow-val').textContent=this.value">
+        <div class="wp-slider-lbl"><span class="wp-slider-key">Pressure kPa</span><span class="wp-slider-val" id="wp-pres-val">1200</span></div>
+        <input type="range" id="wp-pres-slider" min="100" max="5000" value="1200" step="100" oninput="document.getElementById('wp-pres-val').textContent=this.value">
+        <button class="wp-btn wp-btn-g" id="wp-activate-btn" onclick="wellPanelActivate()">▶ ACTIVATE WELL</button>
+        <button class="wp-btn wp-btn-r" id="wp-deactivate-btn" onclick="wellPanelDeactivate()">■ DEACTIVATE</button>
+      </div>
+    </div>
+
+    <!-- CHEMICAL PIPELINE -->
+    <div class="slbl">◈ Chemical Processing Pipeline <span class="help-badge" data-tooltip="info" data-title="ISR PROCESSING PIPELINE" data-body="After uranium solution reaches the surface processing plant, it passes through 8 stages. The uranium is stripped from solution, dried, and packaged as yellowcake. Water is recycled back underground." data-fact="The entire process from injection to yellowcake takes hours, not days — ISR is faster than conventional mining.">?</span></div>
+    <div class="panel">
+      <div class="pbadge br">● 8-STAGE ISR PROCESS</div>
+      <div class="ptitle">Fluid Processing Chain</div>
+      <div class="pipeline-stages" id="pipelineStages"></div>
+    </div>
+
+    <!-- WELLFIELD GRID -->
+    <div class="slbl">◈ Wellfield Control Grid</div>
+    <div class="panel">
+      <div class="pbadge bi">◈ WELLFIELD ALPHA — 700ft DEPTH <span class="help-badge" data-tooltip="info" data-title="WELLFIELD" data-body="A cluster of injection and extraction wells working together. Injection wells (💧) push oxygenated water down. Extraction wells (⬆️) pull uranium-bearing solution up. They work in coordinated pairs." data-fact="Each well is independent on-chain — status, flow rate, and pressure stored separately in ISRNetwork.sol.">?</span></div>
+      <div class="ptitle">Well Node Array</div>
+      <div class="well-grid" id="wellGrid"></div>
+    </div>
+
+  </div>
+  <div class="right-col">
+
+    <!-- COMPLIANCE -->
+    <div class="panel">
+      <div class="pbadge ba">⚠ ENVIRONMENTAL <span class="help-badge" data-tooltip="info" data-title="ENVIRONMENTAL COMPLIANCE" data-body="ISR operations require an NRC Aquifer Exemption. Two impermeable clay barriers separate extraction zones from protected groundwater. Barrier integrity below 70% triggers an emergency halt." data-fact="ISR has a smaller environmental footprint than open-pit mining — no tailings ponds, no large surface disturbance.">?</span></div>
+      <div class="ptitle">Aquifer Compliance Monitor</div>
+      <div class="compliance-grid" id="complianceGrid"></div>
+    </div>
+
+    <!-- BATCH TRACKER -->
+    <div class="panel">
+      <div class="pbadge br">● LIVE</div>
+      <div class="ptitle">Active Batch Tracker <span class="help-badge" data-tooltip="info" data-title="BATCH TRACKER" data-body="Each chemical batch is a tracked unit of uranium-bearing solution moving through the 8 ISR stages. On-chain: immutable record of volume, concentration, and stage history." data-fact="Batches can also be recycled — processed water stripped of uranium is returned to stage 0 for re-injection.">?</span></div>
+      <div class="batch-list" id="batchList"><div style="color:var(--mu);font-size:11px;padding:8px 0;text-align:center">No active batches</div></div>
+    </div>
+
+    <!-- EVENT FEED -->
+    <div class="panel">
+      <div class="pbadge br">● FEED</div>
+      <div class="ptitle" style="display:flex;align-items:center;gap:8px"><div class="live-dot"></div>Network Event Stream <span class="help-badge" data-tooltip="info" data-title="EVENT STREAM" data-body="Real-time on-chain events emitted by ISRNetwork.sol. Every well activation, batch advancement, and aquifer alert is permanently recorded on the XRPL EVM blockchain." data-fact="Events are indexed by wellId and wellfieldId — enabling efficient log queries without scanning all state.">?</span></div>
+      <div class="feed-body" id="feedBody"></div>
+    </div>
+
+    <!-- NETWORK STATUS -->
+    <div class="panel">
+      <div class="pbadge bi">◈ CHAIN</div>
+      <div class="ptitle">Network Status</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:3px;padding:8px">
+          <div class="mlbl">Block</div><div class="mval cv-u" style="font-size:13px" id="nm-block">--</div></div>
+        <div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:3px;padding:8px">
+          <div class="mlbl">Latency</div><div class="mval cv-i" style="font-size:13px" id="nm-lat">--</div></div>
+        <div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:3px;padding:8px">
+          <div class="mlbl">Chain ID</div><div class="mval" style="font-size:13px;color:var(--pur)" id="nm-chain">--</div></div>
+        <div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:3px;padding:8px">
+          <div class="mlbl">Gas Price</div><div class="mval cv-a" style="font-size:13px">100 gwei</div></div>
+      </div>
+      <div style="margin-top:8px;height:3px;background:rgba(141,182,0,.08);border-radius:2px;overflow:hidden">
+        <div id="healthFill" style="height:100%;border-radius:2px;transition:width .5s,background .5s;width:0%"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- READ FUNCTIONS -->
+<div class="slbl">◈ Read Functions — Query On-Chain State</div>
+<div class="write-grid" style="grid-template-columns:repeat(3,1fr)">
+
+  <!-- Get Network Stats -->
+  <div class="wp-card">
+    <div class="pbadge bi">● view</div>
+    <div class="ptitle" style="font-size:10px">Network Stats</div>
+    <button class="btn btn-i" onclick="readNetworkStats()">▶ Query Stats</button>
+    <div class="out" id="out-stats"><span style="color:var(--mu)">Click to read on-chain</span></div>
+  </div>
+
+  <!-- Get Wellfield -->
+  <div class="wp-card">
+    <div class="pbadge bi">● view</div>
+    <div class="ptitle" style="font-size:10px">Get Wellfield</div>
+    <div class="fl">Wellfield ID</div><input id="r-wfId" placeholder="0" type="number" min="0">
+    <button class="btn btn-i" onclick="readWellfield()">▶ Query Wellfield</button>
+    <div class="out" id="out-wf"><span style="color:var(--mu)">Enter ID above</span></div>
+  </div>
+
+  <!-- Get Well -->
+  <div class="wp-card">
+    <div class="pbadge bi">● view</div>
+    <div class="ptitle" style="font-size:10px">Get Well</div>
+    <div class="fl">Well ID</div><input id="r-wellId" placeholder="0, 1, 2…" type="number" min="0">
+    <button class="btn btn-i" onclick="readWell()">▶ Query Well</button>
+    <div class="out" id="out-well"><span style="color:var(--mu)">Enter ID above</span></div>
+  </div>
+
+  <!-- Get Batch -->
+  <div class="wp-card">
+    <div class="pbadge bi">● view</div>
+    <div class="ptitle" style="font-size:10px">Get Batch</div>
+    <div class="fl">Batch ID</div><input id="r-batchId" placeholder="0, 1, 2…" type="number" min="0">
+    <button class="btn btn-i" onclick="readBatch()">▶ Query Batch</button>
+    <div class="out" id="out-batch"><span style="color:var(--mu)">Enter ID above</span></div>
+  </div>
+
+  <!-- Get Aquifer Zone -->
+  <div class="wp-card">
+    <div class="pbadge bi">● view</div>
+    <div class="ptitle" style="font-size:10px">Aquifer Zone</div>
+    <div class="fl">Wellfield ID</div><input id="r-aqId" placeholder="0" type="number" min="0">
+    <button class="btn btn-i" onclick="readAquifer()">▶ Query Aquifer</button>
+    <div class="out" id="out-aq"><span style="color:var(--mu)">Enter ID above</span></div>
+  </div>
+
+  <!-- Get Wellfield Wells -->
+  <div class="wp-card">
+    <div class="pbadge bi">● view</div>
+    <div class="ptitle" style="font-size:10px">Wellfield Wells</div>
+    <div class="fl">Wellfield ID</div><input id="r-wfWellsId" placeholder="0" type="number" min="0">
+    <button class="btn btn-i" onclick="readWellfieldWells()">▶ List Wells</button>
+    <div class="out" id="out-wfwells"><span style="color:var(--mu)">Enter ID above</span></div>
+  </div>
+
+</div>
+
+<!-- WRITE FUNCTIONS -->
+<div class="slbl">◈ Write Functions — Owner Only <span class="help-badge" data-tooltip="info" data-title="WRITE FUNCTIONS" data-body="All write functions require the connected wallet to be the contract owner (onlyOwner modifier). Every transaction is signed by MetaMask and broadcast to XRPL EVM with hardcoded gas: 300,000 limit @ 100 gwei." data-fact="Gas is hardcoded because XRPL EVM does not implement eth_estimateGas or eth_gasPrice.">?</span></div>
+<div class="write-grid" style="grid-template-columns:repeat(4,1fr)">
+
+  <!-- Step 1: Create Wellfield -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ STEP 1</div>
+    <div class="ptitle" style="font-size:10px">Create Wellfield</div>
+    <div class="fl">Name</div><input id="w-wfName" placeholder="e.g. Wellfield Beta" type="text">
+    <div class="fl">Location</div><input id="w-wfLoc" placeholder="e.g. Wyoming, USA" type="text">
+    <div class="fl">Depth (ft)</div><input id="w-wfDepth" placeholder="e.g. 700" type="number" min="100">
+    <button class="btn btn-u" onclick="writeCreateWellfield()">+ Create Wellfield</button>
+    <div class="tx-steps" id="wfTxSteps" style="display:none">
+      <div class="tx-step" id="wf1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="wf2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="wf3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="wf4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Add Well -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ STEP 2</div>
+    <div class="ptitle" style="font-size:10px">Add Well <span class="help-badge" data-tooltip="info" data-title="ADD WELL" data-body="Must be done BEFORE activating. Add wells one at a time — each gets a unique ID starting from 0. Add injection wells first, then extraction wells." data-fact="Run this 4 times: twice with Injection, twice with Extraction to set up a standard wellfield pair array.">?</span></div>
+    <div class="fl">Wellfield ID</div><input id="w-addWfId" placeholder="0" type="number" min="0">
+    <div class="fl">Well Type</div>
+    <select id="w-addWellType">
+      <option value="true">💧 Injection (pumps water down)</option>
+      <option value="false">⬆️ Extraction (pulls solution up)</option>
+    </select>
+    <button class="btn btn-u" onclick="writeAddWell()">+ Add Well</button>
+    <div class="tx-steps" id="addwTxSteps" style="display:none">
+      <div class="tx-step" id="addw1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="addw2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="addw3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="addw4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Step 3: Activate Well -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ STEP 3</div>
+    <div class="ptitle" style="font-size:10px">Activate Well <span class="help-badge" data-tooltip="info" data-title="ACTIVATE WELL" data-body="Sets a well to INJECTING or EXTRACTING. Well must exist first (Step 2). Blocked if wellfield aquifer is compromised." data-fact="Max: 10,000 L/hr flow rate, 5,000 kPa pressure. Both enforced by contract.">?</span></div>
+    <div class="fl">Well ID</div><input id="w-wellId" placeholder="0, 1, 2, 3…" type="number" min="0">
+    <div class="fl">Flow Rate (L/hr)</div><input id="w-flowRate" placeholder="100–10000" type="number" min="100" max="10000">
+    <div class="fl">Pressure (kPa)</div><input id="w-pressure" placeholder="100–5000" type="number" min="100" max="5000">
+    <button class="btn btn-i" onclick="writeActivateWell()">▶ Activate Well</button>
+    <div class="tx-steps" id="actTxSteps" style="display:none">
+      <div class="tx-step" id="act1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="act2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="act3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="act4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Step 4: Create Batch -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ STEP 4</div>
+    <div class="ptitle" style="font-size:10px">Create Batch <span class="help-badge" data-tooltip="info" data-title="CREATE CHEMICAL BATCH" data-body="Creates a uranium solution batch from an active extraction well. Tracks volume (litres) and concentration. Concentration 120 = 12.0 ppm uranium." data-fact="ppm stored ×10 to avoid EVM floating point — same as enrichmentBps in FuelCycle.sol.">?</span></div>
+    <div class="fl">Wellfield ID</div><input id="w-bWfId" placeholder="0" type="number" min="0">
+    <div class="fl">Well ID (extraction)</div><input id="w-bWellId" placeholder="e.g. 1 or 3" type="number" min="0">
+    <div class="fl">Volume (litres)</div><input id="w-bVol" placeholder="e.g. 5000" type="number" min="1">
+    <div class="fl">Concentration (ppm×10) <span class="help-badge" data-tooltip="info" data-title="CONCENTRATION" data-body="Enter 120 for 12.0 ppm, 85 for 8.5 ppm uranium in solution." data-fact="Typical ISR extraction: 20–200 ppm uranium.">?</span></div><input id="w-bConc" placeholder="120 = 12.0 ppm" type="number" min="1">
+    <button class="btn btn-u" onclick="writeCreateBatch()">⚗ Create Batch</button>
+    <div class="tx-steps" id="batTxSteps" style="display:none">
+      <div class="tx-step" id="bat1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="bat2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="bat3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="bat4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Advance Batch -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ onlyOwner</div>
+    <div class="ptitle" style="font-size:10px">Advance Batch <span class="help-badge" data-tooltip="info" data-title="ADVANCE BATCH" data-body="Moves a batch to the next of 8 ISR stages. Each call advances one stage. At stage 7 (Conversion Plant) the batch is marked complete and yellowcake kg is calculated." data-fact="Emits BatchAdvanced event with fromStage + toStage indexed. Final stage also emits BatchCompleted.">?</span></div>
+    <div class="fl">Batch ID</div><input id="w-advBatchId" placeholder="0, 1, 2…" type="number" min="0">
+    <button class="btn btn-u" onclick="writeAdvanceBatch()">→ Advance Stage</button>
+    <div class="tx-steps" id="advTxSteps" style="display:none">
+      <div class="tx-step" id="adv1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="adv2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="adv3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="adv4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Deactivate Well -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ onlyOwner</div>
+    <div class="ptitle" style="font-size:10px">Deactivate Well</div>
+    <div class="fl">Well ID</div><input id="w-deactWellId" placeholder="0, 1, 2…" type="number" min="0">
+    <button class="btn btn-a" onclick="writeDeactivateWell()">■ Deactivate Well</button>
+    <div class="tx-steps" id="deactTxSteps" style="display:none">
+      <div class="tx-step" id="deact1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="deact2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="deact3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="deact4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Recycle Water -->
+  <div class="wp-card">
+    <div class="pbadge br">✦ onlyOwner</div>
+    <div class="ptitle" style="font-size:10px">Recycle Water <span class="help-badge" data-tooltip="info" data-title="RECYCLE BATCH WATER" data-body="After a batch completes, its water can be recycled back to injection stage 0. Creates a new batch with concentration 0 — stripped water ready to dissolve more uranium." data-fact="ISR water recycling rates typically exceed 90%, making it far more sustainable than open-pit mining.">?</span></div>
+    <div class="fl">Completed Batch ID</div><input id="w-recycleBatchId" placeholder="0, 1, 2…" type="number" min="0">
+    <button class="btn btn-i" onclick="writeRecycleBatch()">♻ Recycle Water</button>
+    <div class="tx-steps" id="recTxSteps" style="display:none">
+      <div class="tx-step" id="rec1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="rec2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="rec3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="rec4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+  <!-- Aquifer Inspection -->
+  <div class="wp-card">
+    <div class="pbadge ba">✦ COMPLIANCE</div>
+    <div class="ptitle" style="font-size:10px">Aquifer Inspection <span class="help-badge" data-tooltip="info" data-title="AQUIFER INSPECTION" data-body="Records barrier integrity (0-100) on-chain. Below 70 emits AquiferAlert. Setting compromised=true blocks all well operations for that wellfield immediately." data-fact="Solidity: recordAquiferInspection(wellfieldId, integrity, compromised)">?</span></div>
+    <div class="fl">Wellfield ID</div><input id="w-aqWfId" placeholder="0" type="number" min="0">
+    <div class="fl">Barrier Integrity (0–100)</div><input id="w-aqInteg" placeholder="e.g. 95" type="number" min="0" max="100">
+    <div class="fl">Compromised?</div>
+    <select id="w-aqComp"><option value="false">No — All Clear</option><option value="true">YES — EMERGENCY HALT</option></select>
+    <button class="btn btn-a" onclick="writeAquiferInspection()">🔍 Record Inspection</button>
+    <div class="tx-steps" id="aqTxSteps" style="display:none">
+      <div class="tx-step" id="aq1"><div class="step-dot"></div>Preparing Tx</div>
+      <div class="tx-step" id="aq2"><div class="step-dot"></div>Broadcasting</div>
+      <div class="tx-step" id="aq3"><div class="step-dot"></div>Mining</div>
+      <div class="tx-step" id="aq4"><div class="step-dot"></div>Confirmed</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- LOG -->
+<div class="logpanel">
+  <div class="loghd"><div class="live-dot" style="width:5px;height:5px"></div>System Log — ISR Network v1.0</div>
+  <div class="logscroll" id="logBox">
+    <div class="logrow"><span class="lt2">--:--:--</span><span class="lm2 if">ISR Network Control System — simulation active. Connect wallet for on-chain ops.</span></div>
+  </div>
+</div>
+</div><!-- /app -->
+
+<div class="tooltip" id="tooltip"><div class="tooltip-title" id="tooltip-title"></div><div id="tooltip-body"></div></div>
+
+
+<script>
+/* ══════════════════════════════════════════════════════
+   CONFIG — Replace CONTRACT after forge create
+══════════════════════════════════════════════════════ */
+var CONTRACT      = "0xa766e45193e562A934AD2cb1994c8f9007faA897";
+var XRPL_CHAIN_ID = 1449000;
+var EXPLORER      = "https://explorer.testnet.xrplevm.org/tx/";
+
+/* XRPL EVM — eth_estimateGas + eth_gasPrice are broken. Hardcoded always. */
+var XRPL_GAS = null; // initialized after ethers loads
+
+var ABI = [
+  "function createWellfield(string name, string location, uint256 depthFt) external",
+  "function setWellfieldStatus(uint256 wellfieldId, uint8 newStatus) external",
+  "function addWell(uint256 wellfieldId, bool isInjector) external",
+  "function activateWell(uint256 wellId, uint256 flowRate, uint256 pressure) external",
+  "function deactivateWell(uint256 wellId) external",
+  "function updateWellParameters(uint256 wellId, uint256 flowRate, uint256 pressure, uint256 concentration) external",
+  "function createBatch(uint256 wellfieldId, uint256 wellId, uint256 volumeLitres, uint256 concentrationPpm) external",
+  "function advanceBatch(uint256 batchId) external",
+  "function recycleBatchWater(uint256 batchId) external",
+  "function recordAquiferInspection(uint256 wellfieldId, uint8 integrity, bool compromised) external",
+  "function setAquiferExemption(uint256 wellfieldId, bool exemptionActive) external",
+  "function transferOwnership(address newOwner) external",
+  "function getWellfield(uint256 wellfieldId) view returns (tuple(uint256 id, string name, string location, uint256 depthFt, uint8 status, uint256 wellCount, uint256 totalBatches, uint256 totalVolumeProcessed, uint256 createdAt, bool aquiferSafe))",
+  "function getWell(uint256 wellId) view returns (tuple(uint256 id, uint256 wellfieldId, uint8 status, uint256 flowRate, uint256 pressure, uint256 concentration, uint256 totalExtracted, uint256 activatedAt, uint256 lastUpdatedAt, bool isInjector))",
+  "function getWellfieldWells(uint256 wellfieldId) view returns (uint256[])",
+  "function getBatch(uint256 batchId) view returns (tuple(uint256 id, uint256 wellfieldId, uint256 wellId, uint256 volumeLitres, uint256 concentrationPpm, uint8 currentStage, uint256 recycleCount, bool isRecycledWater, address createdBy, uint256 createdAt, uint256 lastAdvancedAt, bool complete))",
+  "function getAquiferZone(uint256 wellfieldId) view returns (tuple(uint256 wellfieldId, uint256 depthTopFt, uint256 depthBottomFt, uint8 barrierIntegrity, bool exemptionActive, uint256 lastInspectedAt, bool compromised))",
+  "function getNetworkStats() view returns (uint256 totalWellfields, uint256 totalWells, uint256 totalBatches, uint256 totalVolume, uint256 totalYellowcake)",
+  "function wellfieldCount() view returns (uint256)",
+  "function wellCount() view returns (uint256)",
+  "function batchCount() view returns (uint256)",
+  "function owner() view returns (address)",
+  "event WellActivated(uint256 indexed wellId, uint256 indexed wellfieldId, uint256 flowRate, uint256 pressure, uint256 timestamp)",
+  "event WellDeactivated(uint256 indexed wellId, uint256 indexed wellfieldId, uint256 timestamp)",
+  "event BatchCreated(uint256 indexed batchId, uint256 indexed wellfieldId, uint256 indexed wellId, uint256 volumeLitres, uint256 concentrationPpm, address createdBy)",
+  "event BatchAdvanced(uint256 indexed batchId, uint256 indexed wellfieldId, uint8 indexed fromStage, uint8 toStage, uint256 timestamp)",
+  "event BatchCompleted(uint256 indexed batchId, uint256 indexed wellfieldId, uint256 volumeLitres, uint256 yellowcakeKg, uint256 completedAt)",
+  "event AquiferAlert(uint256 indexed wellfieldId, uint8 barrierIntegrity, bool compromised, uint256 timestamp)"
+];
+
+/* ══ ISR STAGE DEFINITIONS ══ */
+var ISR_STAGES = [
+  { name:"Wellfield Injection", icon:"💧", color:"#00A8FF" },
+  { name:"Resin Reloading",     icon:"🔵", color:"#8DB600" },
+  { name:"Resin Recharge",      icon:"⚗",  color:"#B5D400" },
+  { name:"Filter Press",        icon:"🔧", color:"#FFB830" },
+  { name:"Dryer",               icon:"🔥", color:"#FF8C00" },
+  { name:"Yellowcake Pack",     icon:"📦", color:"#FFD700" },
+  { name:"Transport",           icon:"🚛", color:"#A855F7" },
+  { name:"Conversion Plant",    icon:"🏭", color:"#FF3CAC" },
+];
+
+/* ══ STATE ══ */
+var provider, signer, contract, netInterval, txInFlight = false;
+var simWells = [], simBatches = [], simParticles = [];
+var batchIdCounter = 0;
+var overlays = { chem:true, flow:true, aquifer:false, barrier:false };
+var selectedWell = null;
+var barrierIntegrity = 95;
+var windSpeed = 0.4, windTimer = 0;
+var globalTime = 0;
+var cowPositions = [0.25, 0.52, 0.72];
+var cowSpeeds    = [0.00008, 0, 0.00005];
+var cowFrames    = [0, 0, 0];
+var EXPLORER_LINK = EXPLORER;
+
+/* ══ CANVAS SETUP ══ */
+var ugCanvas = document.getElementById("undergroundCanvas");
+var ugCtx    = ugCanvas.getContext("2d");
+
+function resizeCanvas() {
+  var wrap = document.getElementById("ugWrap");
+  ugCanvas.width  = wrap.clientWidth;
+  ugCanvas.height = document.getElementById("ugWrap").classList.contains("fullscreen")
+    ? window.innerHeight : 420;
+}
+
+/* ══ LOG / FEED / PULSE ══ */
+function log(msg, type) {
+  type = type || "if";
+  var box = document.getElementById("logBox");
+  var r   = document.createElement("div"); r.className = "logrow";
+  r.innerHTML = '<span class="lt2">' + new Date().toLocaleTimeString() + '</span><span class="lm2 ' + type + '">' + msg + '</span>';
+  box.appendChild(r); box.scrollTop = box.scrollHeight;
+}
+
+function addFeed(icon, title, sub, col, txHash) {
+  col = col || ""; txHash = txHash || "";
+  var feed = document.getElementById("feedBody");
+  var t    = new Date().toLocaleTimeString();
+  var subHtml = txHash
+    ? sub + ' · <a href="' + EXPLORER + txHash + '" target="_blank" style="color:var(--inject);font-size:9px">Tx ↗</a>'
+    : sub;
+  var item = document.createElement("div"); item.className = "feed-item";
+  item.innerHTML = '<div class="fi-icon">' + icon + '</div><div class="fi-body"><div class="fi-title"' + (col ? ' style="color:' + col + '"' : '') + '>' + title + '</div><div class="fi-sub">' + subHtml + '</div></div><div class="fi-time">' + t + '</div>';
+  feed.insertBefore(item, feed.firstChild);
+  if (feed.children.length > 40) feed.removeChild(feed.lastChild);
+}
+
+function pulse(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("updated"); void el.offsetWidth; el.classList.add("updated");
+}
+
+/* ══ SIM WELLS INIT ══ */
+function initSimWells() {
+  simWells = [
+    { id:0, x:0.22, type:"inject",  status:"injecting",  flow:2500, pressure:1200, conc:0,   color:"#00A8FF" },
+    { id:1, x:0.35, type:"extract", status:"extracting", flow:2200, pressure:900,  conc:120,  color:"#FFB830" },
+    { id:2, x:0.52, type:"inject",  status:"injecting",  flow:1800, pressure:1100, conc:0,   color:"#00A8FF" },
+    { id:3, x:0.65, type:"extract", status:"extracting", flow:2000, pressure:850,  conc:85,   color:"#FFB830" },
+  ];
+  buildWellGrid();
+}
+
+function buildWellGrid() {
+  var grid = document.getElementById("wellGrid");
+  grid.innerHTML = simWells.map(function(w) {
+    var statusCls = w.status === "injecting" ? "injecting" : w.status === "extracting" ? "extracting" : "idle";
+    var statusLabel = w.status === "injecting" ? "INJECT" : w.status === "extracting" ? "EXTRACT" : "IDLE";
+    var statusBadge = w.status === "injecting" ? "ws-inj" : w.status === "extracting" ? "ws-ext" : "ws-idle";
+    var icon = w.type === "inject" ? "💧" : "⬆️";
+    return '<div class="well-node ' + statusCls + '" id="well-node-' + w.id + '" onclick="selectWell(' + w.id + ')" data-tooltip="well" data-wellid="' + w.id + '">' +
+      '<div class="wn-icon">' + icon + '</div>' +
+      '<div class="wn-id">WELL #' + w.id + '</div>' +
+      '<div class="wn-status ' + statusBadge + '">' + statusLabel + '</div>' +
+      '<div class="wn-flow">' + w.flow + ' L/hr</div>' +
+    '</div>';
+  }).join("");
+}
+
+/* ══ PIPELINE STAGES ══ */
+function buildPipelineStages() {
+  var cont = document.getElementById("pipelineStages");
+  cont.innerHTML = ISR_STAGES.map(function(s, i) {
+    var count = simBatches.filter(function(b){ return b.stage === i && !b.complete; }).length;
+    var pct   = Math.min(100, count * 25);
+    return '<div class="pipe-stage" data-tooltip="stage" data-stageid="' + i + '">' +
+      '<div class="ps-icon">' + s.icon + '</div>' +
+      '<div class="ps-name">' + s.name + '</div>' +
+      '<div class="ps-count" style="color:' + s.color + '">' + count + '</div>' +
+      '<div class="ps-bar"><div class="ps-fill" style="width:' + pct + '%;background:' + s.color + '"></div></div>' +
+    '</div>';
+  }).join("");
+}
+
+/* ══ COMPLIANCE ══ */
+/* ── COMPLIANCE — built once, barrier row updated via textContent only ── */
+function buildCompliance() {
+  var cont = document.getElementById("complianceGrid");
+  // Only rebuild from scratch if container is empty (first call)
+  if (cont.children.length === 0) {
+    var items = [
+      { id:"cmp-0", icon:"🌊", label:"Groundwater Bypass",  val:"150ft — NO CONTACT",  pct:100, color:"var(--lime)" },
+      { id:"cmp-1", icon:"🏔️", label:"Clay Barrier #1",      val:"95% integrity",        pct:95,  color:"var(--lime)" },
+      { id:"cmp-2", icon:"⚠️",  label:"Aquifer Exemption",   val:"NRC ACTIVE",           pct:100, color:"var(--uranium)" },
+      { id:"cmp-3", icon:"🏔️", label:"Clay Barrier #2",      val:"100% integrity",       pct:100, color:"var(--lime)" },
+      { id:"cmp-4", icon:"☢",  label:"Radiation Monitor",   val:"0.4 mSv — NORMAL",    pct:8,   color:"var(--uranium)" },
+      { id:"cmp-5", icon:"💧", label:"Water Recycling",      val:"94% recovered",        pct:94,  color:"var(--inject)" },
+    ];
+    cont.innerHTML = items.map(function(item) {
+      return '<div class="comp-item">' +
+        '<span class="comp-icon">' + item.icon + '</span>' +
+        '<div class="comp-body">' +
+          '<div class="comp-lbl">' + item.label + '</div>' +
+          '<div class="comp-val" id="' + item.id + '-val" style="color:' + item.color + '">' + item.val + '</div>' +
+        '</div>' +
+        '<div class="comp-bar-w"><div class="comp-fill" id="' + item.id + '-bar" style="width:' + item.pct + '%;background:' + item.color + ';transition:width .8s ease,background .8s ease"></div></div>' +
+      '</div>';
+    }).join("");
+  }
+
+  // Update only the barrier row values — textContent only, zero reflow
+  var col = barrierIntegrity > 70 ? "var(--lime)" : barrierIntegrity > 40 ? "var(--amber)" : "var(--red)";
+  var valEl = document.getElementById("cmp-1-val");
+  var barEl = document.getElementById("cmp-1-bar");
+  if (valEl) valEl.textContent = Math.round(barrierIntegrity) + "% integrity";
+  if (valEl) valEl.style.color = col;
+  if (barEl) barEl.style.width = Math.round(barrierIntegrity) + "%";
+  if (barEl) barEl.style.background = col;
+}
+
+/* ══ BATCH LIST ══ */
+/* ── BATCH SLOTS — pre-rendered fixed DOM, updated via textContent only.
+   Never rebuilds the DOM. No innerHTML, no reflow, no page shake.
+   4 fixed slots. Slot content is mutated in place every tick. ── */
+var BATCH_SLOT_COUNT = 4;
+var batchSlots = []; // cached DOM refs, built once
+
+function initBatchSlots() {
+  var list = document.getElementById("batchList");
+  list.innerHTML = "";
+  for (var i = 0; i < BATCH_SLOT_COUNT; i++) {
+    var row = document.createElement("div");
+    row.className = "batch-item";
+    row.style.opacity = "0";
+    row.innerHTML =
+      '<div class="bi-dot" id="bs-dot-' + i + '"></div>' +
+      '<div class="bi-body">' +
+        '<div class="bi-id" id="bs-id-' + i + '"></div>' +
+        '<div class="bi-stage" id="bs-stage-' + i + '"></div>' +
+        '<div class="bi-prog"><div class="bi-pfill" id="bs-fill-' + i + '" style="height:100%;border-radius:2px;transition:width .6s ease"></div></div>' +
+      '</div>' +
+      '<div class="bi-pct" id="bs-pct-' + i + '"></div>';
+    list.appendChild(row);
+    batchSlots.push(row);
+  }
+}
+
+function renderBatchList() {
+  if (!batchSlots.length) initBatchSlots();
+  var active = simBatches.filter(function(b){ return !b.complete; }).slice(0, BATCH_SLOT_COUNT);
+
+  for (var i = 0; i < BATCH_SLOT_COUNT; i++) {
+    var slot = batchSlots[i];
+    var b    = active[i];
+    if (!b) {
+      // hide unused slot — just opacity, no layout change
+      slot.style.opacity = "0";
+      continue;
+    }
+    var s = ISR_STAGES[b.stage];
+    // Show slot
+    slot.style.opacity = "1";
+    // Mutate text content only — zero reflow
+    document.getElementById("bs-dot-"   + i).style.cssText = "width:7px;height:7px;border-radius:50%;flex-shrink:0;background:" + s.color + ";box-shadow:0 0 5px " + s.color;
+    document.getElementById("bs-id-"    + i).textContent   = "Batch #" + b.id + " · " + b.vol + "L · " + (b.conc/10).toFixed(1) + "ppm";
+    document.getElementById("bs-stage-" + i).textContent   = s.icon + " " + s.name;
+    document.getElementById("bs-fill-"  + i).style.width   = b.pct.toFixed(0) + "%";
+    document.getElementById("bs-fill-"  + i).style.background = s.color;
+    document.getElementById("bs-pct-"   + i).textContent   = b.pct.toFixed(0) + "%";
+    document.getElementById("bs-pct-"   + i).style.color   = s.color;
+  }
+}
+
+/* ══ WELL SELECTION ══ */
+function selectWell(id) {
+  selectedWell = id;
+  var w = simWells[id];
+  document.querySelectorAll(".well-node").forEach(function(n){ n.classList.remove("selected"); });
+  var node = document.getElementById("well-node-" + id);
+  if (node) node.classList.add("selected");
+  document.getElementById("wellPanelTitle").textContent = "WELL #" + id;
+  document.getElementById("wp-type").textContent     = w.type === "inject" ? "INJECTION" : "EXTRACTION";
+  document.getElementById("wp-status").textContent   = w.status.toUpperCase();
+  document.getElementById("wp-flow").textContent     = w.flow + " L/hr";
+  document.getElementById("wp-pressure").textContent = w.pressure + " kPa";
+  document.getElementById("wp-conc").textContent     = (w.conc/10).toFixed(1) + " ppm";
+  document.getElementById("wp-flow-slider").value    = w.flow;
+  document.getElementById("wp-flow-val").textContent = w.flow;
+  document.getElementById("wp-pres-slider").value    = w.pressure;
+  document.getElementById("wp-pres-val").textContent = w.pressure;
+  document.getElementById("wellPanel").classList.add("open");
+}
+
+function closeWellPanel() {
+  document.getElementById("wellPanel").classList.remove("open");
+  selectedWell = null;
+  document.querySelectorAll(".well-node").forEach(function(n){ n.classList.remove("selected"); });
+}
+
+function wellPanelActivate() {
+  if (selectedWell === null) return;
+  var w = simWells[selectedWell];
+  var fr = parseInt(document.getElementById("wp-flow-slider").value);
+  var pr = parseInt(document.getElementById("wp-pres-slider").value);
+  w.flow = fr; w.pressure = pr;
+  w.status = w.type === "inject" ? "injecting" : "extracting";
+  addFeed("▶", "Well #" + selectedWell + " Activated", fr + " L/hr @ " + pr + " kPa", "var(--lime)");
+  log("Well #" + selectedWell + " activated — " + fr + " L/hr, " + pr + " kPa", "ok");
+  buildWellGrid();
+  document.getElementById("well-node-" + selectedWell).classList.add("selected");
+  updateMetrics();
+}
+
+function wellPanelDeactivate() {
+  if (selectedWell === null) return;
+  var w = simWells[selectedWell];
+  w.status = "idle"; w.flow = 0; w.pressure = 0;
+  addFeed("■", "Well #" + selectedWell + " Deactivated", "Flow stopped", "var(--amber)");
+  log("Well #" + selectedWell + " deactivated", "wn");
+  buildWellGrid();
+  closeWellPanel();
+  updateMetrics();
+}
+
+/* ══ OVERLAYS ══ */
+function toggleOverlay(name) {
+  overlays[name] = !overlays[name];
+  var btn = document.getElementById("overlay-" + name);
+  if (btn) btn.classList.toggle("active", overlays[name]);
+}
+
+/* ══ FULLSCREEN ══ */
+function enterFullscreen() {
+  document.getElementById("ugWrap").classList.add("fullscreen");
+  resizeCanvas();
+  log("Entered subsurface fullscreen mode", "if");
+}
+function exitFullscreen() {
+  document.getElementById("ugWrap").classList.remove("fullscreen");
+  resizeCanvas();
+}
+
+/* ══ METRICS UPDATE ══ */
+function updateMetrics() {
+  var activeWells = simWells.filter(function(w){ return w.status !== "idle"; });
+  var totalFlow   = activeWells.reduce(function(a,w){ return a + w.flow; }, 0);
+  var avgConc     = activeWells.length ? activeWells.reduce(function(a,w){ return a + w.conc; }, 0) / activeWells.length : 0;
+
+  document.getElementById("m-wells").textContent    = activeWells.length;
+  document.getElementById("m-flow").textContent     = totalFlow.toLocaleString();
+  document.getElementById("m-ppm").textContent      = (avgConc/10).toFixed(1);
+  document.getElementById("hdr-wells").textContent  = activeWells.length;
+  document.getElementById("hdr-flow").textContent   = totalFlow.toLocaleString() + " L/hr";
+  document.getElementById("hdr-ppm").textContent    = (avgConc/10).toFixed(1) + " ppm";
+
+  var totalVol = simBatches.reduce(function(a,b){ return a + b.vol; }, 0);
+  document.getElementById("m-vol").textContent = totalVol.toLocaleString();
+
+  var aquiferEl = document.getElementById("m-aquifer");
+  if (barrierIntegrity >= 70) { aquiferEl.textContent = "SAFE"; aquiferEl.className = "mval cv-l"; }
+  else if (barrierIntegrity >= 40) { aquiferEl.textContent = "ALERT"; aquiferEl.className = "mval cv-a"; }
+  else { aquiferEl.textContent = "CRITICAL"; aquiferEl.className = "mval cv-r"; }
+}
+
+/* ══ SIM TICK ══ */
+function simTick() {
+  globalTime += 0.1;
+  windTimer  += 0.1;
+
+  // Wind gust cycle
+  if (windTimer > 12 && Math.random() < 0.02) {
+    windSpeed = 0.85;
+    setTimeout(function(){ windSpeed = 0.3 + Math.random() * 0.2; }, 2000 + Math.random() * 1500);
+    windTimer = 0;
+  }
+  windSpeed += (0.4 - windSpeed) * 0.005;
+
+  // Cow movement
+  cowPositions.forEach(function(_, i) {
+    if (cowSpeeds[i] !== 0) {
+      cowPositions[i] += cowSpeeds[i] * windSpeed;
+      if (cowPositions[i] > 0.92) cowSpeeds[i] = -Math.abs(cowSpeeds[i]);
+      if (cowPositions[i] < 0.12) cowSpeeds[i] =  Math.abs(cowSpeeds[i]);
+    }
+    cowFrames[i] = (cowFrames[i] + 0.08 * (cowSpeeds[i] !== 0 ? 1 : 0.1)) % 4;
+  });
+
+  // Advance sim batches
+  simBatches.forEach(function(b) {
+    if (b.complete) return;
+    b.pct += 0.3 * b.speed;
+    if (b.pct >= 100) {
+      b.pct = 0;
+      b.stage++;
+      if (b.stage >= ISR_STAGES.length) {
+        b.complete = true;
+        var yk = ((b.vol * b.conc) / 10000000).toFixed(3);
+        document.getElementById("m-yellowcake").textContent = (parseFloat(document.getElementById("m-yellowcake").textContent) + parseFloat(yk)).toFixed(3);
+        addFeed("✅", "Batch #" + b.id + " Complete", b.vol + "L → " + yk + "kg yellowcake", "var(--uranium)");
+        log("Batch #" + b.id + " completed — " + yk + "kg yellowcake produced", "ok");
+      } else {
+        addFeed(ISR_STAGES[b.stage].icon, "Batch #" + b.id + " Advanced", "Now: " + ISR_STAGES[b.stage].name, ISR_STAGES[b.stage].color);
+      }
+    }
+  });
+
+  // Drift well concentrations
+  simWells.forEach(function(w) {
+    if (w.type === "extract" && w.status === "extracting") {
+      w.conc += (Math.random() - 0.42) * 3;
+      w.conc  = Math.max(20, Math.min(200, w.conc));
+    }
+    // Drift barrier integrity slowly
+    barrierIntegrity += (Math.random() - 0.48) * 0.05;
+    barrierIntegrity  = Math.max(75, Math.min(100, barrierIntegrity));
+  });
+
+  buildPipelineStages();
+  buildCompliance();
+  renderBatchList();
+  updateMetrics();
+}
+
+/* ══════════════════════════════════════════════════════
+   UNDERGROUND CANVAS RENDERING
+══════════════════════════════════════════════════════ */
+function drawUnderground(ts) {
+  var W = ugCanvas.width, H = ugCanvas.height;
+  var t = ts * 0.001;
+  ugCtx.clearRect(0, 0, W, H);
+
+  var isFS    = document.getElementById("ugWrap").classList.contains("fullscreen");
+  var surfaceY = isFS ? H * 0.30 : H * 0.28;
+  var aq1Top  = isFS ? H * 0.38 : H * 0.36;  // groundwater top
+  var aq1Bot  = isFS ? H * 0.50 : H * 0.48;  // groundwater bottom
+  var clay1Y  = isFS ? H * 0.52 : H * 0.50;  // clay barrier 1
+  var exZoneT = isFS ? H * 0.55 : H * 0.53;  // extraction zone top
+  var exZoneB = isFS ? H * 0.85 : H * 0.84;  // extraction zone bottom
+  var clay2Y  = isFS ? H * 0.86 : H * 0.85;  // clay barrier 2
+
+  /* ── SKY ── */
+  var skyGrad = ugCtx.createLinearGradient(0,0,0,surfaceY);
+  skyGrad.addColorStop(0,"#0A1E35");
+  skyGrad.addColorStop(0.4,"#1A3A5C");
+  skyGrad.addColorStop(0.8,"#2A6090");
+  skyGrad.addColorStop(1,"#5C9BC4");
+  ugCtx.fillStyle = skyGrad; ugCtx.fillRect(0,0,W,surfaceY);
+
+  /* ── CLOUDS ── */
+  drawClouds(t, W, surfaceY);
+
+  /* ── SURFACE GROUND ── */
+  var groundGrad = ugCtx.createLinearGradient(0,surfaceY,0,aq1Top);
+  groundGrad.addColorStop(0,"#3A6B1A");
+  groundGrad.addColorStop(0.15,"#2E5214");
+  groundGrad.addColorStop(0.5,"#6B4423");
+  groundGrad.addColorStop(1,"#4A2E12");
+  ugCtx.fillStyle = groundGrad;
+  ugCtx.fillRect(0, surfaceY, W, aq1Top - surfaceY);
+
+  /* ── GRASS LINE ── */
+  drawGrass(t, W, surfaceY, windSpeed);
+
+  /* ── SURFACE SCENE ── */
+  drawSurfaceScene(t, W, surfaceY, windSpeed);
+
+  /* ── GROUNDWATER AQUIFER ── */
+  var aqGrad = ugCtx.createLinearGradient(0,aq1Top,0,aq1Bot);
+  aqGrad.addColorStop(0,"#0A1E35");
+  aqGrad.addColorStop(0.5,"#0D2A4A");
+  aqGrad.addColorStop(1,"#0A1E35");
+  ugCtx.fillStyle = aqGrad;
+  ugCtx.fillRect(0, aq1Top, W, aq1Bot - aq1Top);
+
+  // Water ripple lines in aquifer
+  for (var ri = 0; ri < 4; ri++) {
+    var ry = aq1Top + (aq1Bot - aq1Top) * (0.2 + ri * 0.2);
+    ugCtx.beginPath();
+    for (var rx = 0; rx < W; rx += 3) {
+      var wy = ry + Math.sin((rx / W) * Math.PI * 6 + t * 1.5 + ri) * 2;
+      rx === 0 ? ugCtx.moveTo(rx, wy) : ugCtx.lineTo(rx, wy);
+    }
+    ugCtx.strokeStyle = "rgba(0,168,255,0.18)";
+    ugCtx.lineWidth = 1;
+    ugCtx.stroke();
+  }
+
+  if (overlays.aquifer) {
+    ugCtx.fillStyle = "rgba(0,168,255,0.06)";
+    ugCtx.fillRect(0, aq1Top, W, aq1Bot - aq1Top);
+    ugCtx.fillStyle = "rgba(0,168,255,0.8)";
+    ugCtx.font = "bold 9px 'Orbitron',monospace";
+    ugCtx.textAlign = "right";
+    ugCtx.fillText("GROUNDWATER — NO CONTACT", W - 12, (aq1Top + aq1Bot) / 2 + 4);
+  }
+
+  /* ── SOIL BETWEEN AQUIFER AND CLAY ── */
+  var soilGrad = ugCtx.createLinearGradient(0,aq1Bot,0,clay1Y);
+  soilGrad.addColorStop(0,"#4A2E12");
+  soilGrad.addColorStop(1,"#3D2408");
+  ugCtx.fillStyle = soilGrad;
+  ugCtx.fillRect(0, aq1Bot, W, clay1Y - aq1Bot);
+
+  /* ── CLAY BARRIER 1 ── */
+  drawClayBarrier(ugCtx, 0, clay1Y, W, 14, t);
+  if (overlays.barrier) {
+    ugCtx.fillStyle = "rgba(255,140,0,0.7)";
+    ugCtx.font = "bold 9px 'Orbitron',monospace";
+    ugCtx.textAlign = "center";
+    ugCtx.fillText("IMPERMEABLE CLAY BARRIER — " + Math.round(barrierIntegrity) + "% INTEGRITY", W/2, clay1Y + 8);
+  }
+
+  /* ── AQUIFER EXEMPTION ZONE (sandstone) ── */
+  var sandGrad = ugCtx.createLinearGradient(0,exZoneT,0,exZoneB);
+  sandGrad.addColorStop(0,"#2A1A08");
+  sandGrad.addColorStop(0.3,"#3A2412");
+  sandGrad.addColorStop(0.7,"#2E1E0A");
+  sandGrad.addColorStop(1,"#1E1006");
+  ugCtx.fillStyle = sandGrad;
+  ugCtx.fillRect(0, exZoneT, W, exZoneB - exZoneT);
+
+  // Sandstone texture lines
+  for (var sl = 0; sl < 8; sl++) {
+    var sy2 = exZoneT + (exZoneB - exZoneT) * (sl / 8);
+    ugCtx.beginPath(); ugCtx.moveTo(0, sy2); ugCtx.lineTo(W, sy2 + Math.sin(sl * 1.3) * 4);
+    ugCtx.strokeStyle = "rgba(139,115,85,0.12)"; ugCtx.lineWidth = 1; ugCtx.stroke();
+  }
+
+  // Exemption zone label
+  if (overlays.aquifer) {
+    ugCtx.fillStyle = "rgba(255,184,48,0.06)";
+    ugCtx.fillRect(0, exZoneT, W, exZoneB - exZoneT);
+    ugCtx.fillStyle = "rgba(255,184,48,0.7)";
+    ugCtx.font = "bold 9px 'Orbitron',monospace";
+    ugCtx.textAlign = "right";
+    ugCtx.fillText("AQUIFER EXEMPTION ZONE — SANDSTONE-HOSTED URANIUM", W - 12, exZoneT + 16);
+  }
+
+  /* ── CLAY BARRIER 2 ── */
+  drawClayBarrier(ugCtx, 0, clay2Y, W, 14, t);
+  if (overlays.barrier) {
+    ugCtx.fillStyle = "rgba(255,140,0,0.7)";
+    ugCtx.font = "bold 9px 'Orbitron',monospace";
+    ugCtx.textAlign = "center";
+    ugCtx.fillText("IMPERMEABLE CLAY BARRIER — 100% INTEGRITY", W/2, clay2Y + 8);
+  }
+
+  /* ── DEEP ROCK ── */
+  ugCtx.fillStyle = "#0D0804";
+  ugCtx.fillRect(0, clay2Y + 14, W, H - clay2Y - 14);
+
+  /* ── DEPTH MARKERS ── */
+  drawDepthMarkers(ugCtx, W, surfaceY, exZoneT, exZoneB, clay2Y);
+
+  /* ── FLUID PARTICLES ── */
+  updateAndDrawParticles(t, W, surfaceY, exZoneT, exZoneB);
+
+  /* ── WELL SHAFTS ── */
+  simWells.forEach(function(w) {
+    drawWellShaft(w, t, W, H, surfaceY, exZoneT, exZoneB);
+  });
+
+  /* ── RECYCLING LOOP ── */
+  drawRecyclingLoop(t, W, surfaceY);
+
+  requestAnimationFrame(drawUnderground);
+}
+
+function drawClouds(t, W, surfaceY) {
+  var clouds = [
+    { x:0.12, y:0.25, r:22, speed:0.00006 },
+    { x:0.38, y:0.18, r:30, speed:0.00004 },
+    { x:0.65, y:0.28, r:18, speed:0.00007 },
+    { x:0.82, y:0.15, r:25, speed:0.00005 },
+  ];
+  clouds.forEach(function(c) {
+    var cx = ((c.x + t * c.speed) % 1.1) * W;
+    var cy = c.y * surfaceY;
+    ugCtx.save();
+    ugCtx.globalAlpha = 0.35;
+    ugCtx.fillStyle = "#FFFFFF";
+    [[0,0,c.r],[c.r*0.6,c.r*0.3,c.r*0.7],[-c.r*0.5,c.r*0.2,c.r*0.65]].forEach(function(blob) {
+      ugCtx.beginPath(); ugCtx.arc(cx+blob[0], cy+blob[1], blob[2], 0, Math.PI*2); ugCtx.fill();
+    });
+    ugCtx.restore();
+  });
+}
+
+function drawGrass(t, W, surfaceY, wind) {
+  var bladeCount = Math.floor(W / 6);
+  for (var i = 0; i < bladeCount; i++) {
+    var bx    = (i / bladeCount) * W + (Math.sin(i * 2.3) * 2);
+    var bh    = 6 + Math.sin(i * 1.7) * 4;
+    var phase = i * 0.35;
+    var sway  = Math.sin(t * 2.5 + phase) * 4 * wind;
+    var col   = i % 3 === 0 ? "#6AAA3A" : i % 3 === 1 ? "#4A8C2A" : "#5A9E30";
+    ugCtx.beginPath();
+    ugCtx.moveTo(bx, surfaceY + 2);
+    ugCtx.quadraticCurveTo(bx + sway * 0.5, surfaceY - bh * 0.5, bx + sway, surfaceY - bh);
+    ugCtx.strokeStyle = col;
+    ugCtx.lineWidth = 1.2;
+    ugCtx.stroke();
+  }
+
+  // Dust particles
+  if (wind > 0.5) {
+    for (var di = 0; di < 8; di++) {
+      var dx  = ((Math.sin(t * 0.7 + di * 2.1) * 0.5 + 0.5) * W);
+      var dy  = surfaceY - 4 - Math.abs(Math.sin(t * 1.3 + di)) * 12;
+      ugCtx.beginPath(); ugCtx.arc(dx, dy, 1.5, 0, Math.PI*2);
+      ugCtx.fillStyle = "rgba(200,184,120," + (wind * 0.4) + ")";
+      ugCtx.fill();
+    }
+  }
+}
+
+function drawSurfaceScene(t, W, surfaceY, wind) {
+  var groundY = surfaceY + 2;
+
+  /* Processing Plant (left) */
+  var px = W * 0.06;
+  // Building
+  ugCtx.fillStyle = "#8A9B88";
+  ugCtx.fillRect(px, groundY - 55, 68, 55);
+  ugCtx.fillStyle = "#6A7A68";
+  ugCtx.fillRect(px, groundY - 55, 68, 5);
+  // Roof triangle
+  ugCtx.beginPath(); ugCtx.moveTo(px - 4, groundY - 55); ugCtx.lineTo(px + 34, groundY - 70); ugCtx.lineTo(px + 72, groundY - 55); ugCtx.closePath();
+  ugCtx.fillStyle = "#5A6A58"; ugCtx.fill();
+  // Windows
+  [[8,20],[28,20],[48,20],[8,38],[28,38],[48,38]].forEach(function(pos) {
+    ugCtx.fillStyle = "rgba(255,184,48,0.4)"; ugCtx.fillRect(px + pos[0], groundY - 55 + pos[1], 10, 8);
+  });
+  // Steam vents
+  for (var sv = 0; sv < 3; sv++) {
+    var vx = px + 12 + sv * 22;
+    for (var sp = 0; sp < 4; sp++) {
+      var vy = groundY - 65 - sp * 6 - Math.sin(t * 2 + sp + sv) * 3;
+      ugCtx.beginPath(); ugCtx.arc(vx + Math.sin(t + sp * 0.5) * 2, vy, 3 - sp * 0.5, 0, Math.PI*2);
+      ugCtx.fillStyle = "rgba(200,220,200," + (0.15 - sp * 0.03) + ")"; ugCtx.fill();
+    }
+  }
+  // Pipes going into ground
+  ugCtx.strokeStyle = "#6A7A68"; ugCtx.lineWidth = 4;
+  [px+15, px+38, px+58].forEach(function(pipex) {
+    ugCtx.beginPath(); ugCtx.moveTo(pipex, groundY); ugCtx.lineTo(pipex, groundY + 30); ugCtx.stroke();
+  });
+  ugCtx.fillStyle = "#5A7A00"; ugCtx.font = "bold 7px 'Orbitron',monospace"; ugCtx.textAlign = "center";
+  ugCtx.fillText("PROCESSING", px + 34, groundY - 15);
+  ugCtx.fillText("PLANT", px + 34, groundY - 6);
+
+  /* Trees */
+  var trees = [
+    { x:0.18, h:50, w:28, phase:0 },
+    { x:0.28, h:58, w:32, phase:1.2 },
+    { x:0.42, h:45, w:25, phase:0.7 },
+    { x:0.85, h:52, w:30, phase:2.1 },
+    { x:0.92, h:44, w:24, phase:1.5 },
+  ];
+  trees.forEach(function(tr) {
+    var tx = tr.x * W;
+    var sway = Math.sin(t * 1.4 + tr.phase) * 2 * wind;
+    // Trunk
+    ugCtx.strokeStyle = "#3A2A1A"; ugCtx.lineWidth = 3;
+    ugCtx.beginPath(); ugCtx.moveTo(tx, groundY); ugCtx.lineTo(tx + sway * 0.3, groundY - tr.h * 0.4); ugCtx.stroke();
+    // Canopy
+    var layers = [[0,tr.h,tr.w],[sway*0.6,-tr.h*0.25,tr.w*0.8],[sway*0.8,-tr.h*0.5,tr.w*0.55]];
+    layers.forEach(function(layer,li) {
+      ugCtx.beginPath(); ugCtx.arc(tx + layer[0], groundY - tr.h*0.4 + layer[1], layer[2], 0, Math.PI*2);
+      ugCtx.fillStyle = li===0?"#2D5A1B":li===1?"#3A7A22":"#4A8C2A"; ugCtx.fill();
+    });
+  });
+
+  /* Barn */
+  var bx = W * 0.57;
+  // Body
+  ugCtx.fillStyle = "#8B1A1A"; ugCtx.fillRect(bx, groundY - 46, 52, 46);
+  // Roof
+  ugCtx.beginPath(); ugCtx.moveTo(bx - 4, groundY - 46); ugCtx.lineTo(bx + 26, groundY - 64); ugCtx.lineTo(bx + 56, groundY - 46); ugCtx.closePath();
+  ugCtx.fillStyle = "#6B1212"; ugCtx.fill();
+  // Door
+  ugCtx.fillStyle = "#5A1010"; ugCtx.fillRect(bx + 18, groundY - 22, 16, 22);
+  // Windows
+  ugCtx.fillStyle = "rgba(255,220,100,0.5)"; ugCtx.fillRect(bx + 6, groundY - 38, 12, 10); ugCtx.fillRect(bx + 34, groundY - 38, 12, 10);
+  // Cross on barn
+  ugCtx.strokeStyle = "#FFFFFF"; ugCtx.lineWidth = 1.5;
+  ugCtx.beginPath(); ugCtx.moveTo(bx + 6, groundY - 38); ugCtx.lineTo(bx + 18, groundY - 28); ugCtx.moveTo(bx + 18, groundY - 38); ugCtx.lineTo(bx + 6, groundY - 28); ugCtx.stroke();
+
+  /* Farmhouse */
+  var hx = W * 0.72;
+  ugCtx.fillStyle = "#E8D0A0"; ugCtx.fillRect(hx, groundY - 48, 44, 48);
+  ugCtx.beginPath(); ugCtx.moveTo(hx - 3, groundY - 48); ugCtx.lineTo(hx + 22, groundY - 62); ugCtx.lineTo(hx + 47, groundY - 48); ugCtx.closePath();
+  ugCtx.fillStyle = "#C0392B"; ugCtx.fill();
+  ugCtx.fillStyle = "#3A2810"; ugCtx.fillRect(hx + 14, groundY - 24, 16, 24);
+  var winPulse = 0.4 + Math.sin(t * 0.15) * 0.1;
+  ugCtx.fillStyle = "rgba(255,200,80," + winPulse + ")";
+  [[4,20],[26,20],[4,36],[26,36]].forEach(function(pos){ ugCtx.fillRect(hx+pos[0], groundY-48+pos[1], 10, 8); });
+
+  /* Cows */
+  cowPositions.forEach(function(cx2, ci) {
+    if (cx2 > 0.12 && cx2 < 0.97) {
+      drawCow(cx2 * W, groundY, ci === 2 ? 0.75 : 1, cowSpeeds[ci] < 0, cowFrames[ci], t, ci);
+    }
+  });
+
+  /* Power lines */
+  var poles = [W * 0.80, W * 0.90];
+  poles.forEach(function(plx) {
+    ugCtx.strokeStyle = "#5A4A3A"; ugCtx.lineWidth = 2.5;
+    ugCtx.beginPath(); ugCtx.moveTo(plx, groundY); ugCtx.lineTo(plx, groundY - 55); ugCtx.stroke();
+    ugCtx.lineWidth = 1.5;
+    ugCtx.beginPath(); ugCtx.moveTo(plx - 10, groundY - 48); ugCtx.lineTo(plx + 10, groundY - 48); ugCtx.stroke();
+    ugCtx.beginPath(); ugCtx.moveTo(plx - 8, groundY - 42); ugCtx.lineTo(plx + 8, groundY - 42); ugCtx.stroke();
+  });
+  if (poles.length >= 2) {
+    var catY = 4 + Math.sin(t * 0.3) * 0.5;
+    ugCtx.strokeStyle = "rgba(60,50,40,0.7)"; ugCtx.lineWidth = 1;
+    [-6,-1,4].forEach(function(offset) {
+      ugCtx.beginPath(); ugCtx.moveTo(poles[0], groundY - 48 + offset);
+      ugCtx.quadraticCurveTo((poles[0]+poles[1])/2, groundY - 40 + offset + catY, poles[1], groundY - 48 + offset);
+      ugCtx.stroke();
+    });
+  }
+}
+
+function drawCow(cx, groundY, scale, facingLeft, frame, t, idx) {
+  ugCtx.save();
+  ugCtx.translate(cx, groundY - 2);
+  ugCtx.scale(facingLeft ? -scale : scale, scale);
+
+  var bobY = Math.sin(t * 2 + idx) * 0.5 * (cowSpeeds[idx] !== 0 ? 1 : 0.2);
+
+  // Body
+  ugCtx.fillStyle = idx === 1 ? "#F0EAD8" : idx === 0 ? "#8B6914" : "#D4C89A";
+  ugCtx.beginPath(); ugCtx.ellipse(-4, bobY - 8, 14, 7, 0, 0, Math.PI*2); ugCtx.fill();
+  // Head
+  ugCtx.beginPath(); ugCtx.ellipse(10, bobY - 10 + (cowSpeeds[idx] === 0 ? Math.sin(t * 0.8 + idx) * 2 : 0), 6, 5, -0.2, 0, Math.PI*2); ugCtx.fill();
+  // Spots
+  if (idx !== 2) {
+    ugCtx.fillStyle = "#3A2A1A"; ugCtx.beginPath(); ugCtx.ellipse(-2, bobY - 10, 4, 3, 0.4, 0, Math.PI*2); ugCtx.fill();
+    ugCtx.beginPath(); ugCtx.ellipse(-10, bobY - 7, 3, 2, -0.3, 0, Math.PI*2); ugCtx.fill();
+  }
+  // Legs (walking)
+  ugCtx.strokeStyle = idx === 1 ? "#C8B88A" : "#6B4A14";
+  ugCtx.lineWidth = 2;
+  var walkCycle = cowSpeeds[idx] !== 0 ? Math.sin(frame * Math.PI / 2) : 0;
+  [[-8,0],[- 2,0],[0,0],[6,0]].forEach(function(pos, li) {
+    var legSwing = li % 2 === 0 ? walkCycle * 3 : -walkCycle * 3;
+    ugCtx.beginPath(); ugCtx.moveTo(pos[0], bobY - 2); ugCtx.lineTo(pos[0] + legSwing, bobY + 9); ugCtx.stroke();
+  });
+  // Tail
+  var tailSway = Math.sin(t * 2.5 + idx) * 8 * (0.5 + windSpeed * 0.5);
+  ugCtx.beginPath(); ugCtx.moveTo(-16, bobY - 8); ugCtx.quadraticCurveTo(-20, bobY - 4 + tailSway, -22, bobY + tailSway); ugCtx.stroke();
+  // Eye
+  ugCtx.fillStyle = "#1A1008"; ugCtx.beginPath(); ugCtx.arc(12, bobY - 11, 1.2, 0, Math.PI*2); ugCtx.fill();
+  // Nose
+  ugCtx.fillStyle = "#D4906A"; ugCtx.beginPath(); ugCtx.ellipse(14, bobY - 8, 2.5, 1.8, 0, 0, Math.PI*2); ugCtx.fill();
+
+  ugCtx.restore();
+}
+
+function drawClayBarrier(ctx, x, y, w, h, t) {
+  var grad = ctx.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, "#4A2E08");
+  grad.addColorStop(0.5, "#5A3A10");
+  grad.addColorStop(1, "#3A2408");
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Texture lines
+  for (var i = 0; i < 6; i++) {
+    var lx = (i / 6) * w;
+    ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx + w/8, y + h);
+    ctx.strokeStyle = "rgba(80,50,12,0.4)"; ctx.lineWidth = 2; ctx.stroke();
+  }
+}
+
+function drawDepthMarkers(ctx, W, surfaceY, exZoneT, exZoneB, clay2Y) {
+  ctx.fillStyle = "rgba(141,182,0,0.4)";
+  ctx.font = "bold 8px 'Orbitron',monospace";
+  ctx.textAlign = "right";
+  var H = ugCanvas.height;
+  var markers = [
+    { y: surfaceY,  label: "0 ft" },
+    { y: exZoneT,   label: "~350 ft" },
+    { y: (exZoneT + exZoneB) / 2, label: "~550 ft" },
+    { y: exZoneB,   label: "~700 ft" },
+  ];
+  markers.forEach(function(m) {
+    ctx.beginPath(); ctx.moveTo(W - 80, m.y); ctx.lineTo(W - 5, m.y);
+    ctx.strokeStyle = "rgba(141,182,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillText(m.label, W - 8, m.y - 2);
+  });
+  // Vertical depth line
+  ctx.beginPath(); ctx.moveTo(W - 40, surfaceY); ctx.lineTo(W - 40, clay2Y);
+  ctx.strokeStyle = "rgba(141,182,0,0.15)"; ctx.lineWidth = 1;
+  ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
+}
+
+function drawWellShaft(w, t, W, H, surfaceY, exZoneT, exZoneB) {
+  var wx   = w.x * W;
+  var col  = w.type === "inject" ? "#00A8FF" : "#FFB830";
+  var glow = w.status !== "idle";
+
+  // Shaft casing
+  var grad = ugCtx.createLinearGradient(wx-3,0,wx+3,0);
+  grad.addColorStop(0, "#444");
+  grad.addColorStop(0.5, "#777");
+  grad.addColorStop(1, "#444");
+  ugCtx.fillStyle = grad;
+  ugCtx.fillRect(wx - 3, surfaceY + 2, 6, exZoneB - surfaceY - 2);
+
+  // Glow when active
+  if (glow) {
+    ugCtx.shadowColor = col;
+    ugCtx.shadowBlur  = 10;
+    ugCtx.strokeStyle = col + "55";
+    ugCtx.lineWidth   = 2;
+    ugCtx.strokeRect(wx - 4, surfaceY + 2, 8, exZoneB - surfaceY - 2);
+    ugCtx.shadowBlur  = 0;
+  }
+
+  // Well head on surface
+  ugCtx.fillStyle = "#8A8A8A";
+  ugCtx.fillRect(wx - 8, surfaceY - 10, 16, 12);
+  ugCtx.fillStyle = "#AAAAAA";
+  ugCtx.fillRect(wx - 6, surfaceY - 14, 12, 5);
+  if (glow) {
+    ugCtx.shadowColor = col; ugCtx.shadowBlur = 12;
+    ugCtx.fillStyle = col;
+    ugCtx.beginPath(); ugCtx.arc(wx, surfaceY - 12, 4, 0, Math.PI*2); ugCtx.fill();
+    ugCtx.shadowBlur = 0;
+  }
+
+  // Fluid particles in shaft
+  if (glow && w.status !== "idle") {
+    var particleCount = Math.floor(w.flow / 500) + 2;
+    for (var pi = 0; pi < particleCount; pi++) {
+      var phase     = (pi / particleCount);
+      var pProgress = (phase + t * (w.type === "inject" ? 0.3 : -0.3) * (w.flow / 3000)) % 1;
+      if (pProgress < 0) pProgress += 1;
+      var py = surfaceY + pProgress * (exZoneB - surfaceY);
+
+      var pConc  = w.type === "extract" ? w.conc / 200 : 0;
+      var pColor = w.type === "inject"
+        ? "rgba(0,168,255," + (0.6 + Math.sin(t * 3 + pi) * 0.2) + ")"
+        : lerpColor("#00A8FF", "#FFB830", pConc);
+
+      ugCtx.beginPath(); ugCtx.arc(wx, py, 2.5, 0, Math.PI*2);
+      ugCtx.fillStyle = pColor; ugCtx.fill();
+
+      // Comet trail
+      ugCtx.beginPath(); ugCtx.moveTo(wx, py);
+      ugCtx.lineTo(wx, py - (w.type === "inject" ? -8 : 8));
+      ugCtx.strokeStyle = w.type === "inject" ? "rgba(0,168,255,0.25)" : "rgba(255,184,48,0.25)";
+      ugCtx.lineWidth = 1.5; ugCtx.stroke();
+    }
+  }
+
+  // Horizontal spread in extraction zone
+  if (glow && w.type === "inject") {
+    var spreadRadius = (w.pressure / 5000) * W * 0.18 * (1 + Math.sin(t * 0.5) * 0.1);
+    var spreadY      = exZoneT + (exZoneB - exZoneT) * 0.7;
+    var spreadGrad   = ugCtx.createRadialGradient(wx, spreadY, 0, wx, spreadY, spreadRadius);
+    spreadGrad.addColorStop(0, "rgba(0,168,255,0.12)");
+    spreadGrad.addColorStop(1, "rgba(0,168,255,0)");
+    ugCtx.fillStyle = spreadGrad;
+    ugCtx.beginPath(); ugCtx.ellipse(wx, spreadY, spreadRadius, spreadRadius * 0.3, 0, 0, Math.PI*2);
+    ugCtx.fill();
+  }
+
+  // Chemical concentration heatmap around extraction well
+  if (overlays.chem && w.type === "extract" && glow) {
+    var heatR = (w.conc / 200) * W * 0.12;
+    var heatGrad = ugCtx.createRadialGradient(wx, exZoneB - 20, 0, wx, exZoneB - 20, heatR);
+    heatGrad.addColorStop(0, "rgba(255,184,48,0.18)");
+    heatGrad.addColorStop(0.6, "rgba(141,182,0,0.08)");
+    heatGrad.addColorStop(1, "rgba(0,168,255,0)");
+    ugCtx.fillStyle = heatGrad;
+    ugCtx.beginPath(); ugCtx.ellipse(wx, exZoneB - 20, heatR, heatR * 0.4, 0, 0, Math.PI*2);
+    ugCtx.fill();
+  }
+
+  // Flow direction arrow (overlay)
+  if (overlays.flow && glow) {
+    var arrowY = (surfaceY + exZoneB) / 2;
+    var dir    = w.type === "inject" ? 1 : -1;
+    ugCtx.fillStyle = col + "AA";
+    ugCtx.beginPath();
+    ugCtx.moveTo(wx, arrowY + dir * 10);
+    ugCtx.lineTo(wx - 5, arrowY - dir * 5);
+    ugCtx.lineTo(wx + 5, arrowY - dir * 5);
+    ugCtx.closePath(); ugCtx.fill();
+  }
+
+  // Well label
+  ugCtx.fillStyle = glow ? col : "rgba(141,182,0,0.4)";
+  ugCtx.font      = "bold 7px 'Orbitron',monospace";
+  ugCtx.textAlign = "center";
+  ugCtx.fillText("W" + w.id, wx, exZoneB + 14);
+
+  // Pulse ring when active
+  if (glow) {
+    var pulseR = 8 + Math.sin(t * 3 + w.id) * 4;
+    ugCtx.beginPath(); ugCtx.arc(wx, exZoneT + (exZoneB-exZoneT)*0.7, pulseR, 0, Math.PI*2);
+    ugCtx.strokeStyle = col + "30"; ugCtx.lineWidth = 2; ugCtx.stroke();
+  }
+}
+
+function drawRecyclingLoop(t, W, surfaceY) {
+  var plantX   = W * 0.085;
+  var progress = (t * 0.12) % 1;
+  var loopPts  = [
+    { x: plantX + 50, y: surfaceY - 20 },
+    { x: W * 0.3,     y: surfaceY - 40 },
+    { x: W * 0.6,     y: surfaceY - 40 },
+    { x: W * 0.75,    y: surfaceY - 20 },
+    { x: W * 0.65,    y: surfaceY - 10 },
+    { x: W * 0.3,     y: surfaceY - 10 },
+    { x: plantX + 50, y: surfaceY - 20 },
+  ];
+
+  // Draw loop path
+  ugCtx.beginPath();
+  ugCtx.moveTo(loopPts[0].x, loopPts[0].y);
+  for (var li = 1; li < loopPts.length; li++) {
+    ugCtx.lineTo(loopPts[li].x, loopPts[li].y);
+  }
+  ugCtx.strokeStyle = "rgba(0,168,255,0.15)";
+  ugCtx.lineWidth   = 2;
+  ugCtx.setLineDash([6,5]);
+  ugCtx.stroke();
+  ugCtx.setLineDash([]);
+
+  // Animated water droplet on loop
+  var totalLen  = loopPts.length - 1;
+  var segIdx    = Math.floor(progress * totalLen);
+  var segFrac   = (progress * totalLen) % 1;
+  if (segIdx < totalLen) {
+    var pa   = loopPts[segIdx], pb = loopPts[segIdx + 1];
+    var dropX = pa.x + (pb.x - pa.x) * segFrac;
+    var dropY = pa.y + (pb.y - pa.y) * segFrac;
+    ugCtx.beginPath(); ugCtx.arc(dropX, dropY, 4, 0, Math.PI*2);
+    ugCtx.fillStyle = "#00A8FF"; ugCtx.shadowColor = "#00A8FF"; ugCtx.shadowBlur = 8;
+    ugCtx.fill(); ugCtx.shadowBlur = 0;
+  }
+
+  // Label
+  ugCtx.fillStyle = "rgba(0,168,255,0.5)";
+  ugCtx.font = "bold 7px 'Orbitron',monospace";
+  ugCtx.textAlign = "center";
+  ugCtx.fillText("WATER RECYCLING LOOP", W * 0.42, surfaceY - 46);
+}
+
+function updateAndDrawParticles(t, W, surfaceY, exZoneT, exZoneB) {
+  // Spawn ambient particles in extraction zone
+  if (Math.random() < 0.12) {
+    var sw = simWells[Math.floor(Math.random() * simWells.length)];
+    if (sw.status !== "idle") {
+      simParticles.push({
+        x: sw.x * W + (Math.random() - 0.5) * 20,
+        y: exZoneT + Math.random() * (exZoneB - exZoneT),
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: sw.type === "inject" ? 0.3 : -0.3,
+        life: 1,
+        color: sw.type === "inject" ? "#00A8FF" : "#FFB830",
+        size: 1.5 + Math.random() * 2,
+      });
+    }
+  }
+
+  // Update + draw
+  simParticles = simParticles.filter(function(p){ return p.life > 0; });
+  simParticles.forEach(function(p) {
+    p.x += p.vx; p.y += p.vy; p.life -= 0.015;
+    ugCtx.beginPath(); ugCtx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    ugCtx.fillStyle = p.color.replace(")", "," + p.life * 0.6 + ")").replace("rgb", "rgba");
+    ugCtx.fill();
+  });
+}
+
+function lerpColor(c1, c2, t2) {
+  var r1=parseInt(c1.slice(1,3),16), g1=parseInt(c1.slice(3,5),16), b1=parseInt(c1.slice(5,7),16);
+  var r2=parseInt(c2.slice(1,3),16), g2=parseInt(c2.slice(3,5),16), b2=parseInt(c2.slice(5,7),16);
+  return "rgba(" + Math.round(r1+(r2-r1)*t2) + "," + Math.round(g1+(g2-g1)*t2) + "," + Math.round(b1+(b2-b1)*t2) + ",0.8)";
+}
+
+/* ══ TOOLTIP ══ */
+document.addEventListener("mousemove", function(e) {
+  var el = e.target;
+  // walk up DOM to find data-tooltip in case child element was hit
+  var target = el;
+  for (var i = 0; i < 4; i++) {
+    if (target && target.dataset && target.dataset.tooltip) break;
+    target = target && target.parentElement;
+  }
+
+  var tt = document.getElementById("tooltip");
+  var ti = document.getElementById("tooltip-title");
+  var tb = document.getElementById("tooltip-body");
+  var shown = false;
+
+  if (target && target.dataset) {
+    var data = target.dataset;
+
+    if (data.tooltip === "well") {
+      var w = simWells[parseInt(data.wellid)];
+      if (w) {
+        ti.textContent = "WELL #" + w.id + " — " + (w.type === "inject" ? "INJECTION" : "EXTRACTION");
+        tb.innerHTML = "<b>Status:</b> " + w.status.toUpperCase() +
+          "<br><b>Flow:</b> " + w.flow + " L/hr" +
+          "<br><b>Pressure:</b> " + w.pressure + " kPa" +
+          "<br><b>Concentration:</b> " + (w.conc/10).toFixed(1) + " ppm" +
+          "<div class='tooltip-fact'>" +
+          (w.type === "inject"
+            ? "Injection wells push oxygenated water down to dissolve uranium from sandstone at ~700ft depth."
+            : "Extraction wells draw uranium-bearing solution up to the surface processing plant.") +
+          "</div>";
+        shown = true;
+      }
+
+    } else if (data.tooltip === "stage") {
+      var s = ISR_STAGES[parseInt(data.stageid)];
+      if (s) {
+        ti.textContent = "STAGE " + data.stageid + " — " + s.name.toUpperCase();
+        var stageDescs = [
+          "Oxygenated water injected at ~700ft to dissolve uranium from sandstone ore.",
+          "Uranium-rich solution flows through tanks of resin beads. Uranium clings to the resin like a magnet.",
+          "Salt water (like a home water softener) strips uranium from resin beads. Resin is recycled.",
+          "Filter press uses cloths and hoses to separate uranium paste from water. Creates a uranium slurry.",
+          "Zero-emission industrial dryer removes all remaining water, producing dry yellowcake powder.",
+          "Yellowcake packed in steel drums under strict NRC and DOT regulations. Each drum tracked.",
+          "Licensed, insured carriers transport drums to conversion facility in Metropolis, IL.",
+          "Yellowcake converted to uranium hexafluoride (UF6) gas — ready for isotope enrichment."
+        ];
+        var stageFacts = [
+          "Water at ~700ft is 4–5x more oxygenated than surface water to efficiently dissolve uranium.",
+          "Resin beads have a huge surface area — 1kg of resin can absorb grams of uranium from millions of litres.",
+          "Salt-water stripping is the same chemistry used in household water softeners.",
+          "The filter press can process thousands of litres per hour.",
+          "Yellowcake is ~85% uranium oxide (U3O8). The name comes from its yellow color.",
+          "UN2912 transport classification. Drums are sealed to prevent any release.",
+          "The Metropolis, IL facility is one of only two UF6 conversion plants in the USA.",
+          "UF6 gas is then fed into centrifuge cascades to enrich U-235 from 0.7% to 3.5–5%."
+        ];
+        var idx = parseInt(data.stageid);
+        tb.innerHTML = stageDescs[idx] + "<div class='tooltip-fact'>" + stageFacts[idx] + "</div>";
+        shown = true;
+      }
+
+    } else if (data.tooltip === "info") {
+      ti.textContent = data.title || "INFO";
+      var factHtml = data.fact ? "<div class='tooltip-fact'>" + data.fact + "</div>" : "";
+      tb.innerHTML = (data.body || "") + factHtml;
+      shown = true;
+    }
+  }
+
+  if (shown) {
+    // Keep tooltip inside viewport
+    var x = e.clientX + 16, y = e.clientY - 10;
+    if (x + 300 > window.innerWidth) x = e.clientX - 310;
+    if (y + 120 > window.innerHeight) y = e.clientY - 130;
+    tt.style.left = x + "px";
+    tt.style.top  = y + "px";
+    tt.classList.add("show");
+  } else {
+    tt.classList.remove("show");
+  }
+});
+
+/* ══ INJECT SIM BATCH ══ */
+function injectSimBatch() {
+  var id    = batchIdCounter++;
+  var w     = simWells.find(function(w){ return w.type === "extract" && w.status === "extracting"; });
+  var conc  = w ? w.conc : 100;
+  var col   = ISR_STAGES[0].color;
+  simBatches.push({ id:id, stage:0, pct:0, vol:5000+Math.floor(Math.random()*3000), conc:conc, speed:0.8+Math.random()*0.4, color:col, complete:false });
+  addFeed("⚗", "Batch #" + id + " Created", "5000L @ " + (conc/10).toFixed(1) + "ppm from Wellfield Alpha", col);
+  log("Sim batch #" + id + " injected into processing pipeline", "ok");
+}
+
+/* ══ TX RUNNER — XRPL GAS HARDCODED ══ */
+async function runTx(opts) {
+  if (!XRPL_GAS) { XRPL_GAS = { gasLimit: ethers.BigNumber.from("300000"), gasPrice: ethers.utils.parseUnits("100","gwei") }; }
+  if (txInFlight) { log("Tx in flight — wait", "wn"); return; }
+  txInFlight = true;
+  opts.steps.style.display = "flex";
+  var s = [opts.s1, opts.s2, opts.s3, opts.s4];
+  function setStep(i, state) {
+    if (i < 0 || i >= s.length) return;
+    s.forEach(function(el,j){ el.className = "tx-step" + (j < i ? " done" : j === i ? " " + state : ""); });
+  }
+  try {
+    setStep(0, "active");
+    if (opts.preview) opts.preview.style.display = "block";
+    setStep(0, "done"); setStep(1, "active");
+    var tx = await opts.fn(...opts.args, XRPL_GAS);
+    log("Tx: " + tx.hash, "if");
+    addFeed("📡", opts.label + " Broadcast", tx.hash.slice(0,12) + "…", "var(--inject)", tx.hash);
+    setStep(1, "done"); setStep(2, "active");
+    var receipt = await tx.wait();
+    setStep(2, "done"); setStep(3, "active");
+    await new Promise(function(r){ setTimeout(r, 300); });
+    setStep(3, "done");
+    log(opts.label + " confirmed — block " + receipt.blockNumber, "ok");
+    addFeed("✅", opts.label + " Confirmed", "Block " + receipt.blockNumber, "var(--uranium)", tx.hash);
+    if (opts.onSuccess) opts.onSuccess(receipt);
+  } catch(e) {
+    var idx = s.findIndex(function(el){ return el.className.includes("active"); });
+    setStep(idx, "fail");
+    log(opts.label + " failed: " + (e.reason || e.message || "unknown"), "er");
+    addFeed("❌", opts.label + " Failed", e.reason || e.message || "Unknown", "var(--red)");
+  } finally { txInFlight = false; }
+}
+
+/* ══ READ FUNCTIONS ══ */
+function outRows(elId, rows) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = rows.map(function(r) {
+    return '<div class="or"><span class="ok2">' + r[0] + '</span><span class="ov ' + (r[2]||'') + '">' + r[1] + '</span></div>';
+  }).join('');
+}
+function outErr(elId, msg) {
+  var el = document.getElementById(elId);
+  if (el) el.innerHTML = '<div class="sm2 er">' + msg + '</div>';
+}
+function outLoading(elId) {
+  var el = document.getElementById(elId);
+  if (el) el.innerHTML = '<div class="sm2 pn">Querying…</div>';
+}
+
+async function readNetworkStats() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  outLoading("out-stats");
+  try {
+    var r = await contract.getNetworkStats();
+    outRows("out-stats",[
+      ["Wellfields",  r[0].toString()],
+      ["Total Wells", r[1].toString()],
+      ["Batches",     r[2].toString()],
+      ["Vol Processed", r[3].toString() + " L","am"],
+      ["Yellowcake",  r[4].toString() + " kg","am"],
+    ]);
+    log("Network stats read on-chain","ok");
+  } catch(e) { outErr("out-stats", e.reason||e.message||"Failed"); }
+}
+
+async function readWellfield() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("r-wfId").value.trim();
+  if (id === "") { outErr("out-wf","Enter wellfield ID"); return; }
+  outLoading("out-wf");
+  try {
+    var r = await contract.getWellfield(id);
+    var statusNames = ["INACTIVE","ACTIVE","SUSPENDED","DECOMMISSIONED"];
+    outRows("out-wf",[
+      ["Name",     r.name],
+      ["Location", r.location],
+      ["Depth",    r.depthFt.toString() + " ft"],
+      ["Status",   statusNames[r.status]||r.status.toString()],
+      ["Wells",    r.wellCount.toString()],
+      ["Batches",  r.totalBatches.toString()],
+      ["Volume",   r.totalVolumeProcessed.toString() + " L","am"],
+      ["Aquifer",  r.aquiferSafe ? "SAFE" : "COMPROMISED", r.aquiferSafe ? "" : "er"],
+    ]);
+    log("Wellfield " + id + " read on-chain","ok");
+  } catch(e) { outErr("out-wf", e.reason||e.message||"Failed"); }
+}
+
+async function readWell() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("r-wellId").value.trim();
+  if (id === "") { outErr("out-well","Enter well ID"); return; }
+  outLoading("out-well");
+  try {
+    var r = await contract.getWell(id);
+    var statusNames = ["IDLE","INJECTING","EXTRACTING","MAINTENANCE","OFFLINE"];
+    outRows("out-well",[
+      ["Type",       r.isInjector ? "💧 INJECTION" : "⬆️ EXTRACTION"],
+      ["Status",     statusNames[r.status]||r.status.toString()],
+      ["Flow Rate",  r.flowRate.toString() + " L/hr","am"],
+      ["Pressure",   r.pressure.toString() + " kPa"],
+      ["Conc.",      (parseInt(r.concentration.toString())/10).toFixed(1) + " ppm"],
+      ["Extracted",  r.totalExtracted.toString() + " L"],
+      ["Wellfield",  r.wellfieldId.toString()],
+    ]);
+    log("Well " + id + " read on-chain","ok");
+  } catch(e) { outErr("out-well", e.reason||e.message||"Failed"); }
+}
+
+async function readBatch() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("r-batchId").value.trim();
+  if (id === "") { outErr("out-batch","Enter batch ID"); return; }
+  outLoading("out-batch");
+  try {
+    var r = await contract.getBatch(id);
+    var stageNames = ["Injection","Resin Load","Resin Chg","Filter","Dryer","Packaging","Transport","Conversion"];
+    outRows("out-batch",[
+      ["Wellfield",   r.wellfieldId.toString()],
+      ["Well",        r.wellId.toString()],
+      ["Volume",      r.volumeLitres.toString() + " L","am"],
+      ["Conc.",       (parseInt(r.concentrationPpm.toString())/10).toFixed(1) + " ppm"],
+      ["Stage",       r.currentStage + " — " + (stageNames[r.currentStage]||"")],
+      ["Recycled",    r.isRecycledWater ? "YES (×"+r.recycleCount+")" : "No"],
+      ["Complete",    r.complete ? "✅ YES" : "In Progress"],
+    ]);
+    log("Batch " + id + " read on-chain","ok");
+  } catch(e) { outErr("out-batch", e.reason||e.message||"Failed"); }
+}
+
+async function readAquifer() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("r-aqId").value.trim();
+  if (id === "") { outErr("out-aq","Enter wellfield ID"); return; }
+  outLoading("out-aq");
+  try {
+    var r = await contract.getAquiferZone(id);
+    outRows("out-aq",[
+      ["Zone Top",    r.depthTopFt.toString() + " ft"],
+      ["Zone Bottom", r.depthBottomFt.toString() + " ft"],
+      ["Integrity",   r.barrierIntegrity.toString() + "%", parseInt(r.barrierIntegrity.toString()) >= 70 ? "" : "er"],
+      ["Exemption",   r.exemptionActive ? "NRC ACTIVE" : "Not Active"],
+      ["Compromised", r.compromised ? "⚠️ YES — HALTED" : "No", r.compromised ? "er" : ""],
+    ]);
+    log("Aquifer zone " + id + " read on-chain","ok");
+  } catch(e) { outErr("out-aq", e.reason||e.message||"Failed"); }
+}
+
+async function readWellfieldWells() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("r-wfWellsId").value.trim();
+  if (id === "") { outErr("out-wfwells","Enter wellfield ID"); return; }
+  outLoading("out-wfwells");
+  try {
+    var r = await contract.getWellfieldWells(id);
+    var el = document.getElementById("out-wfwells");
+    if (r.length === 0) {
+      el.innerHTML = '<div class="sm2" style="color:var(--mu)">No wells added yet — use Add Well first</div>';
+    } else {
+      outRows("out-wfwells",[
+        ["Well Count", r.length.toString()],
+        ["Well IDs",   r.map(function(x){return x.toString();}).join(", "),"am"],
+      ]);
+    }
+    log("Wellfield " + id + " wells listed","ok");
+  } catch(e) { outErr("out-wfwells", e.reason||e.message||"Failed"); }
+}
+
+/* ══ WRITE FUNCTIONS ══ */
+async function writeCreateWellfield() {
+  if (!contract) { log("Connect wallet first", "wn"); return; }
+  var name  = document.getElementById("w-wfName").value.trim();
+  var loc   = document.getElementById("w-wfLoc").value.trim();
+  var depth = document.getElementById("w-wfDepth").value.trim();
+  if (!name || !loc || !depth) { log("Fill all fields", "wn"); return; }
+  await runTx({ fn:contract.createWellfield, args:[name,loc,depth], label:"createWellfield",
+    steps:document.getElementById("wfTxSteps"),
+    s1:document.getElementById("wf1"),s2:document.getElementById("wf2"),s3:document.getElementById("wf3"),s4:document.getElementById("wf4"),
+  });
+}
+
+async function writeAddWell() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var wfId = document.getElementById("w-addWfId").value.trim();
+  var type = document.getElementById("w-addWellType").value === "true";
+  if (wfId === "") { log("Enter wellfield ID","wn"); return; }
+  await runTx({ fn:contract.addWell, args:[wfId, type], label:"addWell",
+    steps:document.getElementById("addwTxSteps"),
+    s1:document.getElementById("addw1"),s2:document.getElementById("addw2"),s3:document.getElementById("addw3"),s4:document.getElementById("addw4"),
+  });
+}
+
+async function writeActivateWell() {
+  if (!contract) { log("Connect wallet first", "wn"); return; }
+  var wellId = document.getElementById("w-wellId").value.trim();
+  var fr     = document.getElementById("w-flowRate").value.trim();
+  var pr     = document.getElementById("w-pressure").value.trim();
+  if (wellId === "" || !fr || !pr) { log("Fill all fields", "wn"); return; }
+  await runTx({ fn:contract.activateWell, args:[wellId,fr,pr], label:"activateWell",
+    steps:document.getElementById("actTxSteps"),
+    s1:document.getElementById("act1"),s2:document.getElementById("act2"),s3:document.getElementById("act3"),s4:document.getElementById("act4"),
+  });
+}
+
+async function writeDeactivateWell() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("w-deactWellId").value.trim();
+  if (id === "") { log("Enter well ID","wn"); return; }
+  await runTx({ fn:contract.deactivateWell, args:[id], label:"deactivateWell",
+    steps:document.getElementById("deactTxSteps"),
+    s1:document.getElementById("deact1"),s2:document.getElementById("deact2"),s3:document.getElementById("deact3"),s4:document.getElementById("deact4"),
+  });
+}
+
+async function writeAdvanceBatch() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("w-advBatchId").value.trim();
+  if (id === "") { log("Enter batch ID","wn"); return; }
+  await runTx({ fn:contract.advanceBatch, args:[id], label:"advanceBatch",
+    steps:document.getElementById("advTxSteps"),
+    s1:document.getElementById("adv1"),s2:document.getElementById("adv2"),s3:document.getElementById("adv3"),s4:document.getElementById("adv4"),
+  });
+}
+
+async function writeRecycleBatch() {
+  if (!contract) { log("Connect wallet first","wn"); return; }
+  var id = document.getElementById("w-recycleBatchId").value.trim();
+  if (id === "") { log("Enter batch ID","wn"); return; }
+  await runTx({ fn:contract.recycleBatchWater, args:[id], label:"recycleBatchWater",
+    steps:document.getElementById("recTxSteps"),
+    s1:document.getElementById("rec1"),s2:document.getElementById("rec2"),s3:document.getElementById("rec3"),s4:document.getElementById("rec4"),
+  });
+}
+
+async function writeCreateBatch() {
+  if (!contract) { log("Connect wallet first", "wn"); return; }
+  var wfId = document.getElementById("w-bWfId").value.trim();
+  var wId  = document.getElementById("w-bWellId").value.trim();
+  var vol  = document.getElementById("w-bVol").value.trim();
+  var conc = document.getElementById("w-bConc").value.trim();
+  if (wfId === "" || wId === "" || !vol || !conc) { log("Fill all fields", "wn"); return; }
+  await runTx({ fn:contract.createBatch, args:[wfId,wId,vol,conc], label:"createBatch",
+    steps:document.getElementById("batTxSteps"),
+    s1:document.getElementById("bat1"),s2:document.getElementById("bat2"),s3:document.getElementById("bat3"),s4:document.getElementById("bat4"),
+    onSuccess: function(){ injectSimBatch(); }
+  });
+}
+
+async function writeAquiferInspection() {
+  if (!contract) { log("Connect wallet first", "wn"); return; }
+  var wfId   = document.getElementById("w-aqWfId").value.trim();
+  var integ  = document.getElementById("w-aqInteg").value.trim();
+  var comp   = document.getElementById("w-aqComp").value === "true";
+  if (wfId === "" || !integ) { log("Fill all fields", "wn"); return; }
+  if (comp) {
+    addFeed("🚨", "AQUIFER EMERGENCY", "Wellfield " + wfId + " — HALT ALL OPS", "var(--red)");
+  }
+  await runTx({ fn:contract.recordAquiferInspection, args:[wfId,integ,comp], label:"recordAquiferInspection",
+    steps:document.getElementById("aqTxSteps"),
+    s1:document.getElementById("aq1"),s2:document.getElementById("aq2"),s3:document.getElementById("aq3"),s4:document.getElementById("aq4"),
+    onSuccess: function(){
+      barrierIntegrity = parseInt(integ);
+      buildCompliance();
+      updateMetrics();
+    }
+  });
+}
+
+/* ══ NETWORK MONITOR — getBlockNumber only (no gasPrice) ══ */
+async function updateNetwork() {
+  if (!provider) return;
+  try {
+    var t0 = Date.now();
+    var bl = await provider.getBlockNumber();
+    var lat = Date.now() - t0;
+    document.getElementById("blockNum").textContent = bl.toLocaleString();
+    document.getElementById("nm-block").textContent = bl.toLocaleString();
+    document.getElementById("nm-lat").textContent   = lat + " ms";
+    var h   = lat < 400 ? 100 : lat < 900 ? 65 : 30;
+    var col = h > 70 ? "var(--uranium)" : h > 40 ? "var(--amber)" : "var(--red)";
+    var hf  = document.getElementById("healthFill");
+    hf.style.width = h + "%"; hf.style.background = col;
+  } catch(e) {}
+}
+
+/* ══ WALLET CONNECT ══ */
+async function connectWallet() {
+  if (!window.ethereum) { document.getElementById("noMM").classList.add("show"); log("MetaMask not found","er"); return; }
+  var btn = document.getElementById("connectBtn"); btn.disabled = true; btn.textContent = "Connecting…";
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer   = provider.getSigner();
+    contract = new ethers.Contract(CONTRACT, ABI, signer);
+    var addr = await signer.getAddress();
+    var net  = await provider.getNetwork();
+    document.getElementById("walletAddr").textContent = addr.slice(0,6) + "…" + addr.slice(-4);
+    document.getElementById("nm-chain").textContent   = net.chainId;
+    btn.textContent = "Connected ✓"; btn.classList.add("on"); btn.disabled = false;
+    if (net.chainId !== XRPL_CHAIN_ID) {
+      document.getElementById("chainWarn").classList.add("show");
+      log("Wrong chain: " + net.chainId + " (need 1449000)", "wn");
+    } else {
+      document.getElementById("chainWarn").classList.remove("show");
+      var sp = document.getElementById("statusPill"); sp.textContent = "● ONLINE"; sp.className = "sp-pill sp-on";
+    }
+    log("Wallet: " + addr, "ok");
+    addFeed("🔗", "Wallet Connected", addr.slice(0,10) + "…" + addr.slice(-4), "var(--uranium)");
+    await updateNetwork();
+    netInterval = setInterval(updateNetwork, 6000);
+    provider.on("block", function(bn){
+      document.getElementById("nm-block").textContent = bn.toLocaleString();
+      document.getElementById("blockNum").textContent = bn.toLocaleString();
+    });
+    window.ethereum.on("accountsChanged", connectWallet);
+    window.ethereum.on("chainChanged", connectWallet);
+  } catch(e) {
+    btn.textContent = "Initialize"; btn.disabled = false;
+    log("Connect failed: " + (e.message || e), "er");
+  }
+}
+
+/* ══ INIT ══ */
+window.addEventListener("load", function() {
+  // Init ethers-dependent constants after library loads
+  XRPL_GAS = {
+    gasLimit: ethers.BigNumber.from("300000"),
+    gasPrice: ethers.utils.parseUnits("100", "gwei")
+  };
+  if (!window.ethereum) document.getElementById("noMM").classList.add("show");
+  document.getElementById("connectBtn").onclick = connectWallet;
+
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
+  initSimWells();
+  initBatchSlots();
+  buildPipelineStages();
+  buildCompliance();
+  updateMetrics();
+
+  requestAnimationFrame(drawUnderground);
+  setInterval(simTick, 250);
+
+  // Auto-inject demo batches
+  setTimeout(function() {
+    injectSimBatch();
+    injectSimBatch();
+    log("ISR simulation online — 4 wells active, 2 batches in pipeline", "ok");
+    addFeed("⚡", "System Online", "Wellfield Alpha active — 4 wells running", "var(--uranium)");
+  }, 800);
+
+  setTimeout(injectSimBatch, 8000);
+
+  // TAB key toggles fullscreen underground mode
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      var wrap = document.getElementById("ugWrap");
+      if (wrap.classList.contains("fullscreen")) {
+        exitFullscreen();
+        log("Returned to surface — Tab to re-enter underground", "if");
+      } else {
+        enterFullscreen();
+        log("Entered subsurface mode — press Tab to return to surface", "if");
+      }
+    }
+    // Escape also exits
+    if (e.key === "Escape") {
+      var wrap = document.getElementById("ugWrap");
+      if (wrap.classList.contains("fullscreen")) {
+        exitFullscreen();
+      }
+    }
+  });
+});
+</script>
+</body>
+</html>
