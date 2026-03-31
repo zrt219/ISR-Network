@@ -1,4 +1,5 @@
 # ⛏ ISR Network
+<img width="1536" height="1024" alt="ChatGPT Image Mar 31, 2026, 02_48_55 AM" src="https://github.com/user-attachments/assets/b7c450b5-3038-40b1-8f47-d06da2d37147" />
 
 > Real-time In-Situ Recovery uranium extraction control system — built on the **XRPL EVM Sidechain Testnet**.
 > A fully deployed Solidity contract powering a live industrial simulation dashboard — no backend, no server, one HTML file.
@@ -13,7 +14,7 @@
 
 ## 🔴 Live Demo
 
-**[View Dashboard →](http://isr-network.surge.sh/)**
+**[View Dashboard →](https://isr-network.vercel.app/)**
 
 **Contract on Explorer →** [0xa766e4...faA897](https://explorer.testnet.xrplevm.org/address/0xa766e45193e562A934AD2cb1994c8f9007faA897)
 
@@ -21,11 +22,30 @@
 
 ## What This Is
 
-ISR Network is a production-grade Web3 control system for a live In-Situ Recovery uranium extraction contract on the XRPL EVM Sidechain. ISR is the modern method of uranium mining — oxygenated water is injected ~700ft underground to dissolve uranium from sandstone ore, the uranium-bearing solution is extracted to surface, processed through 8 stages, and the water recycled back underground.
+ISR Network is a production-grade Web3 control system for a live In-Situ Recovery uranium extraction contract on the XRPL EVM Sidechain.
 
-**No backend. No API. No framework. One HTML file reads and writes to the blockchain in real time.**
+It is not a simulation — it is a deterministic on-chain execution system modeling real-world uranium extraction processes.
 
-Every wellfield, well, and chemical batch is tracked on-chain with immutable state. Flow rates, injection pressures, uranium concentrations, aquifer barrier integrity, and batch provenance are all permanent on-chain records.
+All system state lives on-chain:
+- wellfields
+- wells (flow, pressure, concentration)
+- chemical batches (volume, enrichment, lifecycle stage)
+- aquifer integrity + compliance constraints
+
+There is no backend.
+
+All interactions flow directly:
+
+UI (index.html) → ethers.js → XRPL EVM → ISRNetwork.sol
+
+This guarantees:
+- every state mutation is a signed transaction
+- every read reflects on-chain truth
+- every constraint is enforced at the contract level
+
+The frontend is not a dashboard — it is the execution surface of the protocol.
+
+![ScreenRecorderProject45](https://github.com/user-attachments/assets/980fdd8b-12d7-487e-85fd-5dadce03b55f)
 
 ---
 
@@ -55,7 +75,41 @@ Every wellfield, well, and chemical batch is tracked on-chain with immutable sta
 - ✅ Uranium yellow-green industrial theme — scanlines, depth glow, beam animations
 - ✅ Responsive layout (desktop + mobile)
 
+
+## 🎬 Full System Execution — End-to-End On-Chain Flow
+
+https://github.com/user-attachments/assets/a36120d9-900c-4ad3-a26b-3626a2de4011
+
+## 🌍 Subsurface Extraction — Live Wellfield Simulation
+![ScreenRecorderProject49](https://github.com/user-attachments/assets/379fb590-c348-4f67-85d8-e210e2b1fc3c)
+
+## ⚙️ ISR Processing Pipeline — 8-Stage On-Chain Lifecycle
+![ScreenRecorderProject47_2](https://github.com/user-attachments/assets/f721284e-c3ef-46a6-a3e1-523ca95231ef)
+
+## 🖥️ Command Interface — Real-Time Contract State & Controls
+![ScreenRecorderProject48](https://github.com/user-attachments/assets/d84e56d2-4d35-4c6d-a20b-648ade643118)
+
+## 📊 On-Chain Query + Execution Panels — Direct Contract Interaction
+<img width="1977" height="932" alt="chrome_9ojRYgawva" src="https://github.com/user-attachments/assets/852edc82-0c8b-47dc-900d-88bb62069132" />
+
+## 🔐 Transaction Layer — MetaMask Execution & On-Chain Confirmation
+https://github.com/user-attachments/assets/8f03e79b-6c31-48f0-9d9b-b86577ad6a30
+
+
+
 ---
+
+### Safety & Constraints
+
+- Forward-only batch progression (no rollback)
+- Aquifer integrity guard — blocks all operations if compromised
+- Hard limits on flow rate and pressure
+- Owner-only mutation layer
+- No floating point — all values encoded deterministically
+- No external dependencies — reduced attack surface
+
+- --
+
 
 ## Contract — `ISRNetwork.sol`
 
