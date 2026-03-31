@@ -243,7 +243,7 @@ owner() → address
 | 3D Visualisation | Three.js r128 (CDN) |
 | Frontend | Vanilla HTML/CSS/JS, Canvas 2D — zero build step |
 | Fonts | Orbitron, Rajdhani (Google Fonts) |
-| Hosting | Surge |
+| Hosting | Vercel |
 
 ---
 
