@@ -399,6 +399,19 @@ Get free testnet XRP: **https://faucet.testnet.xrplevm.org**
 
 ---
 
+## Inspiration
+
+The ISR Network system is based on real-world in-situ recovery (ISR) uranium extraction processes.
+
+Reference:
+https://encoreuranium.com/industry-and-media/in-situ-recovery/
+<img width="1024" height="624" alt="infographic_Acquifer-Examption-Zone_noLogo-1024x624" src="https://github.com/user-attachments/assets/359a6388-9940-4fc6-84b9-c9828a2b2721" />
+
+This project takes the underlying industrial model and encodes it as a deterministic on-chain state machine — translating physical extraction flows, constraints, and lifecycle stages into enforceable contract logic.
+
+ISR is one of the most widely used uranium extraction methods globally due to its efficiency and reduced surface disruption.
+
+
 ## On-Chain Systems Portfolio
 
 | Project | Description | Status |
