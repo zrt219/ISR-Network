@@ -345,16 +345,16 @@ Get free testnet XRP: **https://faucet.testnet.xrplevm.org**
 
 ---
 
-## Coming Soon
-
-More projects being built on XRPL EVM Testnet:
+## On-Chain Systems Portfolio
 
 | Project | Description | Status |
 |---------|-------------|--------|
-| U235 Fuel Cycle | 6-stage uranium processing pipeline — mine to reactor | ✅ Live |
-| Dark Matter Yield Farm | Black hole staking protocol with quantum yield mechanics | 🔜 Coming Soon |
-| COHR Lab Simulator | Coherent Corp photonics fab — batch pipeline on-chain | 🔜 Coming Soon |
-| Black Hole Observatory | 3-contract deep space station — ship, registry, mission control | 🔜 Coming Soon |
+| **[ZUC Mine Command Center](https://github.com/zrt219/Zuc-Mine-Command-Center)** | On-chain uranium mining operations dashboard — real-time reserve tracking, miner registry, and contract interaction via a fully frontend-driven command interface | ✅ Live |
+| **[U235 Fuel Cycle](https://github.com/zrt219/-U235-Fuel-Cycle-)** | Nuclear fuel cycle pipeline — uranium ore to enriched fuel rod, deterministic multi-stage processing with full on-chain traceability | ✅ Live |
+| **[ISR Network](https://github.com/zrt219/ISR-Network)** | Intelligence surveillance reconnaissance system — on-chain asset tracking, mission lifecycle state machine, and role-based operator control | ✅ Live |
+| **[Dark Matter Farm](https://github.com/zrt219/Dark-Matter-Farm)** | DeFi yield protocol — experimental high-convexity farming system with custom reward mechanics and on-chain state-driven emissions | ✅ Live |
+---
+
 
 ---
 
@@ -362,4 +362,3 @@ More projects being built on XRPL EVM Testnet:
 
 MIT — see [LICENSE](LICENSE)
 
-MIT
